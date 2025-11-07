@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class ETYPE_INFO2_ENTRY
     {
@@ -18,8 +16,7 @@ namespace GoldendMSA
 
         public ETYPE_INFO2_ENTRY(AsnElt body)
         {
-            foreach (AsnElt s in body.Sub[0].Sub)
-            {
+            foreach (var s in body.Sub[0].Sub)
                 switch (s.TagValue)
                 {
                     case 0:
@@ -28,13 +25,10 @@ namespace GoldendMSA
                     case 1:
                         salt = Encoding.UTF8.GetString(s.Sub[0].GetOctetString());
                         break;
-                    default:
-                        break;
                 }
-            }
         }
 
-        public Int32 etype { get; set; }
+        public int etype { get; set; }
 
         public string salt { get; set; }
 

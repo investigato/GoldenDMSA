@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GoldendMSA.Unsafe
 {
@@ -36,7 +32,6 @@ namespace GoldendMSA.Unsafe
             int notsureFlag,
             [MarshalAs(UnmanagedType.LPArray)] byte[] pbDerivedKey,
             int cbDerivedKey,
-            int AlwaysZero);
-
+            int alwaysZero);
     }
 }

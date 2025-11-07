@@ -1,19 +1,21 @@
-﻿using GoldendMSA.Unsafe;
-using System;
+﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using GoldendMSA.Unsafe;
 
 namespace GoldendMSA
 {
     public static class GmsaPassword
     {
-        private static readonly byte[] DefaultGMSASecurityDescriptor = {
-                0x1, 0x0, 0x4, 0x80, 0x30, 0x0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x14, 0x00, 0x00, 0x00, 0x02, 0x0, 0x1C, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0,
-                0x14, 0x0, 0x9F, 0x1, 0x12, 0x0, 0x1, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x9,
-                0x0, 0x0, 0x0, 0x1, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x12, 0x0, 0x0, 0x0 };
+        private static readonly byte[] DefaultGmsaSecurityDescriptor =
+        {
+            0x1, 0x0, 0x4, 0x80, 0x30, 0x0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x14, 0x00, 0x00, 0x00, 0x02, 0x0, 0x1C, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x14, 0x0, 0x9F, 0x1, 0x12, 0x0, 0x1, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x9,
+            0x0, 0x0, 0x0, 0x1, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x12, 0x0, 0x0, 0x0
+        };
 
 
         public static byte[] GetPassword( // GetPasswordBasedOnTimeStamp
@@ -23,25 +25,25 @@ namespace GoldendMSA
             string domainName,
             string forestName)
         {
-            int l0KeyID = 0, l1KeyID = 0, l2KeyID = 0;
+            int l0KeyId = 0, l1KeyId = 0, l2KeyId = 0;
 
-            KdsUtils.GetCurrentIntervalID(KdsUtils.KeyCycleDuration, 0, ref l0KeyID, ref l1KeyID, ref l2KeyID);
+            KdsUtils.GetCurrentIntervalId(KdsUtils.KeyCycleDuration, 0, ref l0KeyId, ref l1KeyId, ref l2KeyId);
 
             GetKey.GetSidKeyLocal(
-                GmsaPassword.DefaultGMSASecurityDescriptor,
-                GmsaPassword.DefaultGMSASecurityDescriptor.Length,
+                DefaultGmsaSecurityDescriptor,
+                DefaultGmsaSecurityDescriptor.Length,
                 rootKey,
-                l0KeyID, l1KeyID, l2KeyID,
+                l0KeyId, l1KeyId, l2KeyId,
                 0,
                 domainName, forestName,
-                out GroupKeyEnvelope gke,
-                out int gkeSize);
+                out var gke,
+                out var gkeSize);
 
-            int passwordBlobSize = 256;
-            byte[] sidBytes = new byte[sid.BinaryLength];
+            var passwordBlobSize = 256;
+            var sidBytes = new byte[sid.BinaryLength];
             sid.GetBinaryForm(sidBytes, 0);
 
-            var pwdBlob = GmsaPassword.GenerateGMSAPassowrd(
+            var pwdBlob = GenerateGmsaPassowrd(
                 gke, gkeSize,
                 pwdId.MsdsManagedPasswordIdBytes,
                 sidBytes,
@@ -51,7 +53,7 @@ namespace GoldendMSA
             return pwdBlob;
         }
 
-        private static void ParseSIDKeyResult(
+        private static void ParseSidKeyResult(
             GroupKeyEnvelope gke,
             int gkeSize,
             byte[] msdsManagedPasswordId,
@@ -63,26 +65,21 @@ namespace GoldendMSA
             ref int newL2KeyId,
             out byte[] publicKey)
         {
+            if (newL2KeyId < 0) throw new ArgumentOutOfRangeException(nameof(newL2KeyId));
             newL2KeyId = 31;
             if (msdsManagedPasswordId != null)
             {
-                MsdsManagedPasswordId msds_ManagedPasswordID = new MsdsManagedPasswordId(msdsManagedPasswordId);
-                l1KeyIdDiff = gke.L1Index - msds_ManagedPasswordID.L1Index;
-                l2KeyIdDiff = 32 - msds_ManagedPasswordID.L2Index;
-                if (gke.cbL2Key > 0)
+                var managedPasswordId = new MsdsManagedPasswordId(msdsManagedPasswordId);
+                l1KeyIdDiff = gke.L1Index - managedPasswordId.L1Index;
+                l2KeyIdDiff = 32 - managedPasswordId.L2Index;
+                if (gke.CbL2Key > 0)
                 {
                     l1KeyIdDiff--;
-                    if (l1KeyIdDiff > 0)
+                    if (l1KeyIdDiff > 0) newL1KeyId = gke.L1Index - 2;
+                    if (gke.L1Index <= managedPasswordId.L1Index)
                     {
-                        newL1KeyId = gke.L1Index - 2;
-                    }
-                    if (gke.L1Index <= msds_ManagedPasswordID.L1Index)
-                    {
-                        l2KeyIdDiff = gke.L2Index - msds_ManagedPasswordID.L2Index;
-                        if (l2KeyIdDiff > 0)
-                        {
-                            newL2KeyId = gke.L2Index - 1;
-                        }
+                        l2KeyIdDiff = gke.L2Index - managedPasswordId.L2Index;
+                        if (l2KeyIdDiff > 0) newL2KeyId = gke.L2Index - 1;
                     }
                 }
                 else if (l1KeyIdDiff > 0)
@@ -94,22 +91,15 @@ namespace GoldendMSA
             {
                 l2KeyIdDiff = 1;
             }
-            if (gke.cbL1Key > 0)
-            {
+
+            if (gke.CbL1Key > 0)
                 l1Key = gke.L1Key.ToArray();
-            }
             else
-            {
                 l1Key = null;
-            }
-            if (gke.cbL2Key > 0)
-            {
+            if (gke.CbL2Key > 0)
                 l2Key = gke.L2Key.ToArray();
-            }
             else
-            {
                 l2Key = null;
-            }
             publicKey = null;
         }
 
@@ -125,127 +115,124 @@ namespace GoldendMSA
             int newL2KeyId)
         {
             var msdsManagedPasswordId = new MsdsManagedPasswordId(msdsManagedPasswordIdBytes);
-            byte[] rootKeyGUID = gke.RootKeyIdentifier.ToByteArray();
+            var rootKeyGuid = gke.RootKeyIdentifier.ToByteArray();
             byte[] kdfParam = null;
 
-            if (gke.cbKDFParameters > 0)
-                kdfParam = gke.KDFParameters.ToArray();
+            if (gke.CbKdfParameters > 0)
+                kdfParam = gke.KdfParameters.ToArray();
 
             uint errCode = 0;
 
             if (l1KeyDiff > 0)
             {
                 errCode = KdsCli.GenerateKDFContext(
-                    rootKeyGUID, gke.L0Index,
+                    rootKeyGuid, gke.L0Index,
                     newL1KeyId, 0xffffffff,
                     1,
-                    out IntPtr KDFContextL1,
-                    out int KDFContextSizeL1,
-                    out int kdfContextFlagL1);
+                    out var kdfContextL1,
+                    out var kdfContextSizeL1,
+                    out var kdfContextFlagL1);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
 
 
-                byte[] KDFContextArrL1 = new byte[KDFContextSizeL1];
-                Marshal.Copy(KDFContextL1, KDFContextArrL1, 0, KDFContextSizeL1);
+                var kdfContextArrL1 = new byte[kdfContextSizeL1];
+                Marshal.Copy(kdfContextL1, kdfContextArrL1, 0, kdfContextSizeL1);
 
                 errCode = KdsCli.GenerateDerivedKey(
                     kdfAlgorithmId, kdfParam,
-                    gke.cbKDFParameters, l1Key,
-                    64, KDFContextArrL1,
-                    KDFContextSizeL1, ref kdfContextFlagL1,
-                null, 0,
+                    gke.CbKdfParameters, l1Key,
+                    64, kdfContextArrL1,
+                    kdfContextSizeL1, ref kdfContextFlagL1,
+                    null, 0,
                     l1KeyDiff, l1Key,
                     RootKey.KdsRootKeyDataSizeDefault, 0);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
             }
 
-            if ((msdsManagedPasswordIdBytes == null || gke.L1Index <= msdsManagedPasswordId.L1Index) && gke.cbL2Key != 0)
+            if ((msdsManagedPasswordIdBytes == null || gke.L1Index <= msdsManagedPasswordId.L1Index) &&
+                gke.CbL2Key != 0)
                 l1Key = l2Key;
 
             if (l2KeyDiff > 0)
             {
                 long something;
                 if (msdsManagedPasswordIdBytes == null)
-                {
                     something = gke.L1Index;
-                }
                 else
-                {
                     something = msdsManagedPasswordId.L1Index;
-                }
 
                 errCode = KdsCli.GenerateKDFContext(
-                    rootKeyGUID, gke.L0Index,
+                    rootKeyGuid, gke.L0Index,
                     something, newL2KeyId,
                     2,
-                    out IntPtr KDFContextL2,
-                    out int KDFContextSizeL2,
-                    out int kdfContextFlagL2);
+                    out var kdfContextL2,
+                    out var kdfContextSizeL2,
+                    out var kdfContextFlagL2);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
 
 
-                byte[] KDFContextArrL2 = new byte[KDFContextSizeL2];
-                Marshal.Copy(KDFContextL2, KDFContextArrL2, 0, KDFContextSizeL2);
+                var kdfContextArrL2 = new byte[kdfContextSizeL2];
+                Marshal.Copy(kdfContextL2, kdfContextArrL2, 0, kdfContextSizeL2);
 
                 if (l2Key == null)
                     l2Key = new byte[RootKey.KdsRootKeyDataSizeDefault];
 
                 errCode = KdsCli.GenerateDerivedKey(
                     kdfAlgorithmId, kdfParam,
-                    gke.cbKDFParameters, l1Key,
-                    64, KDFContextArrL2,
-                    KDFContextSizeL2, ref kdfContextFlagL2,
-                null, 0,
-                l2KeyDiff, l2Key,
+                    gke.CbKdfParameters, l1Key,
+                    64, kdfContextArrL2,
+                    kdfContextSizeL2, ref kdfContextFlagL2,
+                    null, 0,
+                    l2KeyDiff, l2Key,
                     RootKey.KdsRootKeyDataSizeDefault, 0);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(ClientComputeL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
             }
         }
 
-        private static byte[] GenerateGMSAPassowrd(
+        private static byte[] GenerateGmsaPassowrd(
             GroupKeyEnvelope gke,
             int gkeSize,
             byte[] msdsManagedPasswordId,
-            byte[] Sid,
-            IntPtr OutOpt,
-            IntPtr OutOptSize,
+            byte[] sid,
+            IntPtr outOpt,
+            IntPtr outOptSize,
             int pwdBlobSize)
         {
             byte[] kdfParam = null;
-            int newL1KeyID = 0, newL2KeyID = 0, l1KeyDiff = 0, l2KeyDiff = 0, flag = 0;
-            string labelStr = "GMSA PASSWORD\x0";
-            byte[] label = Encoding.Unicode.GetBytes(labelStr);
+            int newL1KeyId = 0, newL2KeyId = 0, l1KeyDiff = 0, l2KeyDiff = 0, flag = 0;
+            var labelStr = "GMSA PASSWORD\x0";
+            var label = Encoding.Unicode.GetBytes(labelStr);
             var pwdBlob = new byte[pwdBlobSize];
 
-            ParseSIDKeyResult(
+            ParseSidKeyResult(
                 gke, gkeSize,
                 msdsManagedPasswordId,
-                out byte[] l1Key, ref l1KeyDiff, ref newL1KeyID,
-                out byte[] l2Key, ref l2KeyDiff, ref newL2KeyID,
-                out byte[] publicKey);
+                out var l1Key, ref l1KeyDiff, ref newL1KeyId,
+                out var l2Key, ref l2KeyDiff, ref newL2KeyId,
+                out var publicKey);
 
             if (l1KeyDiff > 0 || l2KeyDiff > 0)
-            {
-                ClientComputeL2Key(gke, msdsManagedPasswordId, gke.KDFAlgorithm, l1Key, ref l2Key, l1KeyDiff, newL1KeyID, l2KeyDiff, newL2KeyID);
-            }
-            if (gke.cbKDFParameters > 0)
-            {
-                kdfParam = gke.KDFParameters;
-            }
+                ClientComputeL2Key(gke, msdsManagedPasswordId, gke.KdfAlgorithm, l1Key, ref l2Key, l1KeyDiff,
+                    newL1KeyId, l2KeyDiff, newL2KeyId);
+            if (gke.CbKdfParameters > 0) kdfParam = gke.KdfParameters;
 
             var errCode = KdsCli.GenerateDerivedKey(
-                gke.KDFAlgorithm, kdfParam,
-                gke.cbKDFParameters, l2Key,
-                64, Sid,
-                Sid.Length,
+                gke.KdfAlgorithm, kdfParam,
+                gke.CbKdfParameters, l2Key,
+                64, sid,
+                sid.Length,
                 ref flag,
                 label, 28,
                 1,
@@ -253,7 +240,8 @@ namespace GoldendMSA
                 0); // 28 is hardcoded in the dll, should be label.Length
 
             if (errCode != 0)
-                throw new Exception($"{nameof(GenerateGMSAPassowrd)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(GenerateGmsaPassowrd)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
 
             return pwdBlob;
         }

@@ -1,60 +1,52 @@
 ﻿using System;
-using System.Net;
-using System.DirectoryServices.Protocols;
-using System.Diagnostics.Eventing.Reader;
-using System.DirectoryServices;
-using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 using System.Collections.Generic;
-using System.Linq;
-using System.Net.Mime;
-using System.Runtime.InteropServices;
-using System.Security.Principal;
+using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
+using System.Linq;
+using System.Net;
 using System.Net.Security;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Security.Cryptography;
-using System.DirectoryServices.ActiveDirectory;
-using System.Management;
-using AuthenticationLevel = System.Management.AuthenticationLevel;
+using System.Security.Principal;
 
-namespace GoldendMSA {
-    public class dMSAEnumerate
+namespace GoldendMSA
+{
+    public class DmsaEnumerate
     {
-        public static void PrintDMSAs(String DomainName, string user, string password, string userDomain, int maxRid)
+        public static void PrintdMsas(string domainName, string user, string password, string userDomain, int maxRid)
         {
             try
             {
                 try
                 {
-                    var lsaLookup = new LSALookupSid(
-                    username: user,
-                    password: password,
-                    domain: userDomain,
-                    port: 445,
-                    maxRid: maxRid
+                    var lsaLookup = new LsaLookupSid(
+                        user,
+                        password,
+                        userDomain,
+                        445,
+                        maxRid: maxRid
                     );
 
-                    (string dcFqdn, string dcIp) = LdapUtils.GetDomainControllerInfoAlt(DomainName);
+                    var (dcFqdn, dcIp) = LdapUtils.GetDomainControllerInfoAlt(domainName);
 
 
                     lsaLookup.Dump(dcFqdn, dcIp);
                 }
-                catch {
-                    var lsaLookup = new LSALookupSid(
-                        username: user,
-                        password: password,
-                        domain: userDomain,
-                        port: 139,
+                catch
+                {
+                    var lsaLookup = new LsaLookupSid(
+                        user,
+                        password,
+                        userDomain,
+                        139,
                         maxRid: maxRid
-                        );
+                    );
 
-                    (string dcFqdn, string dcIp) = LdapUtils.GetDomainControllerInfoAlt(DomainName);
+                    var (dcFqdn, dcIp) = LdapUtils.GetDomainControllerInfoAlt(domainName);
 
-                    
+
                     lsaLookup.Dump(dcFqdn, dcIp);
-                
                 }
-                
             }
             catch (Exception ex)
             {
@@ -68,30 +60,29 @@ namespace GoldendMSA {
                 Console.WriteLine("3. Verify credentials are correct");
             }
         }
-
-
     }
 
 
-    public class LSALookupSid
+    public class LsaLookupSid
     {
-        private readonly string _username;
+        private readonly string _domain;
+        private readonly bool _domainSids;
+        private readonly string _lmHash;
+        private readonly int _maxRid;
+        private readonly string _ntHash;
         private readonly string _password;
         private readonly int _port;
-        private readonly int _maxRid;
-        private readonly string _domain;
-        private readonly string _lmHash;
-        private readonly string _ntHash;
-        private readonly bool _domainSids;
         private readonly bool _useKerberos;
+        private readonly string _username;
 
-        public LSALookupSid(string username = "", string password = "", string domain = "",
-                           int? port = null, string hashes = null, bool domainSids = false,
-                           bool useKerberos = false, int maxRid = 4000)
+        public LsaLookupSid(string username = "", string password = "", string domain = "",
+            int? port = null, string hashes = null, bool domainSids = false,
+            bool useKerberos = false, int maxRid = 4000)
         {
             // Configure TLS/SSL settings to bypass certificate validation
             ServicePointManager.ServerCertificateValidationCallback = AcceptAllCertificates;
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+            ServicePointManager.SecurityProtocol =
+                SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
             ServicePointManager.CheckCertificateRevocationList = false;
 
             _username = username;
@@ -116,7 +107,8 @@ namespace GoldendMSA {
         }
 
         // Accept all SSL certificates (for testing purposes)
-        private static bool AcceptAllCertificates(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private static bool AcceptAllCertificates(object sender, X509Certificate certificate, X509Chain chain,
+            SslPolicyErrors sslPolicyErrors)
         {
             return true;
         }
@@ -138,34 +130,27 @@ namespace GoldendMSA {
 
         private void BruteForce(string remoteName, string remoteHost, int maxRid)
         {
-            string domainSid = GetDomainSid(remoteName);
+            var domainSid = GetDomainSid(remoteName);
             Console.WriteLine($"Domain SID is: {domainSid}");
             Console.WriteLine("");
-            List<String> specialAccounts = LdapUtils.SearchForGMSAsDirectly(remoteName, true, _domain,_username,_password);
+            var specialAccounts = LdapUtils.SearchForGmsAsDirectly(remoteName, true, _domain, _username, _password);
 
-            int soFar = 0;
+            var soFar = 0;
             const int SIMULTANEOUS = 1000;
 
-            for (int j = 0; j <= maxRid / SIMULTANEOUS; j++)
+            for (var j = 0; j <= maxRid / SIMULTANEOUS; j++)
             {
                 int sidsToCheck;
                 if ((maxRid - soFar) / SIMULTANEOUS == 0)
-                {
                     sidsToCheck = (maxRid - soFar) % SIMULTANEOUS;
-                }
                 else
-                {
                     sidsToCheck = SIMULTANEOUS;
-                }
 
                 if (sidsToCheck == 0)
                     break;
 
                 var sids = new List<string>();
-                for (int i = soFar; i < soFar + sidsToCheck; i++)
-                {
-                    sids.Add($"{domainSid}-{i}");
-                }
+                for (var i = soFar; i < soFar + sidsToCheck; i++) sids.Add($"{domainSid}-{i}");
 
                 try
                 {
@@ -178,15 +163,12 @@ namespace GoldendMSA {
                         soFar += SIMULTANEOUS;
                         continue;
                     }
-                    else if (e.Message.Contains("STATUS_SOME_NOT_MAPPED"))
-                    {
+
+                    if (e.Message.Contains("STATUS_SOME_NOT_MAPPED"))
                         // Handle partial results
                         ProcessPartialResults(sids, soFar, specialAccounts);
-                    }
                     else
-                    {
                         throw;
-                    }
                 }
 
                 soFar += SIMULTANEOUS;
@@ -217,15 +199,14 @@ namespace GoldendMSA {
         {
             // Method 1: Try with explicit credentials if provided
             if (!string.IsNullOrEmpty(_username) && !string.IsNullOrEmpty(_password))
-            {
                 try
                 {
                     Console.WriteLine("Trying connection with explicit credentials...");
                     using (var context = new PrincipalContext(
-                        ContextType.Domain,
-                        remoteName,
-                        _username,
-                        _password))
+                               ContextType.Domain,
+                               remoteName,
+                               _username,
+                               _password))
                     {
                         return GetSidFromContext(context, remoteName);
                     }
@@ -234,7 +215,6 @@ namespace GoldendMSA {
                 {
                     Console.WriteLine($"Method 1 failed: {ex.Message}");
                 }
-            }
 
             // Method 2: Try without explicit credentials (current user context)
             try
@@ -254,7 +234,7 @@ namespace GoldendMSA {
             try
             {
                 Console.WriteLine("Trying LDAP connection...");
-                return GetSidViaLDAP(remoteName);
+                return GetSidViaLdap(remoteName);
             }
             catch (Exception ex)
             {
@@ -265,7 +245,6 @@ namespace GoldendMSA {
         }
 
 
-
         private string GetSidFromContext(PrincipalContext context, string remoteName)
         {
             try
@@ -274,22 +253,19 @@ namespace GoldendMSA {
                 using (var searcher = new PrincipalSearcher(new UserPrincipal(context)))
                 {
                     var searchResults = searcher.FindAll();
-                    foreach (Principal principal in searchResults.Take(10)) // Check first 10 users
-                    {
+                    foreach (var principal in searchResults.Take(10)) // Check first 10 users
                         if (principal?.Sid != null)
                         {
-                            string sidString = principal.Sid.ToString();
+                            var sidString = principal.Sid.ToString();
                             if (sidString.StartsWith("S-1-5-21-"))
                             {
                                 var parts = sidString.Split('-');
                                 if (parts.Length >= 7) // Domain SID should have at least 7 parts
-                                {
                                     // Domain SID is everything except the last part (RID)
                                     return string.Join("-", parts.Take(parts.Length - 1));
-                                }
                             }
                         }
-                    }
+
                     searchResults.Dispose();
                 }
 
@@ -300,16 +276,13 @@ namespace GoldendMSA {
                     // Get the DirectoryEntry for the domain
                     if (context.ConnectedServer != null)
                     {
-                        string ldapPath = $"LDAP://{context.ConnectedServer}";
+                        var ldapPath = $"LDAP://{context.ConnectedServer}";
 
                         if (!string.IsNullOrEmpty(_username) && !string.IsNullOrEmpty(_password))
-                        {
-                            domainEntry = new DirectoryEntry(ldapPath, $"{_domain}\\{_username}", _password, AuthenticationTypes.Secure);
-                        }
+                            domainEntry = new DirectoryEntry(ldapPath, $"{_domain}\\{_username}", _password,
+                                AuthenticationTypes.Secure);
                         else
-                        {
                             domainEntry = new DirectoryEntry(ldapPath);
-                        }
 
                         var objectSid = domainEntry.Properties["objectSid"].Value as byte[];
                         if (objectSid != null)
@@ -330,22 +303,17 @@ namespace GoldendMSA {
                     using (var groupSearcher = new PrincipalSearcher(new GroupPrincipal(context)))
                     {
                         var groups = groupSearcher.FindAll();
-                        foreach (GroupPrincipal group in groups.Cast<GroupPrincipal>().Take(20))
-                        {
+                        foreach (var group in groups.Cast<GroupPrincipal>().Take(20))
                             if (group.Name?.ToLower().Contains("domain admins") == true ||
                                 group.Name?.ToLower().Contains("administrators") == true)
-                            {
                                 if (group.Sid != null)
                                 {
-                                    string sidString = group.Sid.ToString();
+                                    var sidString = group.Sid.ToString();
                                     if (sidString.StartsWith("S-1-5-21-") && sidString.EndsWith("-512"))
-                                    {
                                         // Remove the -512 to get domain SID
                                         return sidString.Substring(0, sidString.LastIndexOf('-'));
-                                    }
                                 }
-                            }
-                        }
+
                         groups.Dispose();
                     }
                 }
@@ -363,19 +331,15 @@ namespace GoldendMSA {
         }
 
 
-        private string GetSidViaLDAP(string remoteName)
+        private string GetSidViaLdap(string remoteName)
         {
-            string ldapPath = $"LDAP://{remoteName}";
+            var ldapPath = $"LDAP://{remoteName}";
 
             DirectoryEntry entry;
             if (!string.IsNullOrEmpty(_username) && !string.IsNullOrEmpty(_password))
-            {
                 entry = new DirectoryEntry(ldapPath, _username, _password, AuthenticationTypes.Secure);
-            }
             else
-            {
                 entry = new DirectoryEntry(ldapPath);
-            }
 
             using (entry)
             {
@@ -391,10 +355,9 @@ namespace GoldendMSA {
         }
 
 
-        private void LookupSids(List<string> sids, int baseIndex, List<String> specialAccounts)
+        private void LookupSids(List<string> sids, int baseIndex, List<string> specialAccounts)
         {
             foreach (var sidString in sids.Select((sid, index) => new { sid, index }))
-            {
                 try
                 {
                     var sid = new SecurityIdentifier(sidString.sid);
@@ -403,34 +366,21 @@ namespace GoldendMSA {
                     try
                     {
                         var account = (NTAccount)sid.Translate(typeof(NTAccount));
-                        string [] justName = (account.Value).Split('\\');
-                        if (justName[1] != null)
-                        {
-                            if ((justName[1]).EndsWith("$"))
-                            {
-                                
-                                if (!specialAccounts.Contains(justName[1]))
-                                {
-                                    Console.WriteLine($"{sidString.sid}: {account.Value} (Suspected DMSA - Regular resolve)");
-                                }
-                            }
-                        }
-
+                        var justName = account.Value.Split('\\');
+                        if (justName[1].EndsWith("$"))
+                            if (!specialAccounts.Contains(justName[1]))
+                                Console.WriteLine(
+                                    $"{sidString.sid}: {account.Value} (Suspected DMSA - Regular resolve)");
                     }
                     catch (IdentityNotMappedException)
                     {
                         // Try alternative resolution methods
-                        string resolvedName = TryAlternativeSidResolution(sidString.sid);
+                        var resolvedName = TryAlternativeSidResolution(sidString.sid);
                         if (!string.IsNullOrEmpty(resolvedName))
-                        {
                             if (resolvedName.EndsWith("$"))
-                            {
                                 if (!specialAccounts.Contains(resolvedName))
-                                {
-                                    Console.WriteLine($"{sidString.sid}: {resolvedName} (Suspected DMSA - Alternative resolve)");
-                                }
-                            }
-                        }
+                                    Console.WriteLine(
+                                        $"{sidString.sid}: {resolvedName} (Suspected DMSA - Alternative resolve)");
                     }
                 }
                 catch (ArgumentException ex)
@@ -441,7 +391,6 @@ namespace GoldendMSA {
                 {
                     Console.WriteLine($"Error looking up SID {sidString.sid}: {e.Message}");
                 }
-            }
         }
 
         private string TryAlternativeSidResolution(string sidString)
@@ -450,7 +399,6 @@ namespace GoldendMSA {
             {
                 // Method 1: Try using DirectorySearcher
                 if (!string.IsNullOrEmpty(_domain))
-                {
                     using (var searcher = new DirectorySearcher())
                     {
                         searcher.Filter = $"(objectSid={ConvertSidToSearchFormat(sidString)})";
@@ -460,12 +408,11 @@ namespace GoldendMSA {
                         var result = searcher.FindOne();
                         if (result != null)
                         {
-                            string name = result.Properties["sAMAccountName"][0]?.ToString() ??
-                                         result.Properties["name"][0]?.ToString();
+                            var name = result.Properties["sAMAccountName"][0]?.ToString() ??
+                                       result.Properties["name"][0]?.ToString();
                             return name;
                         }
                     }
-                }
             }
             catch (Exception ex)
             {
@@ -481,7 +428,7 @@ namespace GoldendMSA {
             {
                 // Convert SID string to binary format for LDAP search
                 var securityIdentifier = new SecurityIdentifier(sid);
-                byte[] sidBytes = new byte[securityIdentifier.BinaryLength];
+                var sidBytes = new byte[securityIdentifier.BinaryLength];
                 securityIdentifier.GetBinaryForm(sidBytes, 0);
                 return "\\" + string.Join("\\", sidBytes.Select(b => b.ToString("X2")));
             }
@@ -492,7 +439,7 @@ namespace GoldendMSA {
             }
         }
 
-        private void ProcessPartialResults(List<string> sids, int baseIndex, List<String> specialAccounts)
+        private void ProcessPartialResults(List<string> sids, int baseIndex, List<string> specialAccounts)
         {
             // Process partial results when some SIDs are mapped and others aren't
             LookupSids(sids, baseIndex, specialAccounts);
@@ -502,21 +449,21 @@ namespace GoldendMSA {
 
         [DllImport("advapi32.dll", SetLastError = true)]
         private static extern uint LsaOpenPolicy(
-            ref LSA_UNICODE_STRING SystemName,
-            ref LSA_OBJECT_ATTRIBUTES ObjectAttributes,
-            uint DesiredAccess,
-            out IntPtr PolicyHandle);
+            ref LSA_UNICODE_STRING systemName,
+            ref LSA_OBJECT_ATTRIBUTES objectAttributes,
+            uint desiredAccess,
+            out IntPtr policyHandle);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         private static extern uint LsaLookupSids(
-            IntPtr PolicyHandle,
-            int Count,
-            IntPtr[] Sids,
-            out IntPtr ReferencedDomains,
-            out IntPtr Names);
+            IntPtr policyHandle,
+            int count,
+            IntPtr[] sids,
+            out IntPtr referencedDomains,
+            out IntPtr names);
 
         [DllImport("advapi32.dll")]
-        private static extern uint LsaClose(IntPtr PolicyHandle);
+        private static extern uint LsaClose(IntPtr policyHandle);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct LSA_UNICODE_STRING
@@ -536,8 +483,5 @@ namespace GoldendMSA {
             public IntPtr SecurityDescriptor;
             public IntPtr SecurityQualityOfService;
         }
-
-
     }
 }
-

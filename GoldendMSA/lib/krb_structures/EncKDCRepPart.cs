@@ -1,9 +1,8 @@
 ﻿using System;
-using Asn1;
 using System.Text;
-using System.Collections.Generic;
+using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class EncKDCRepPart
     {
@@ -25,8 +24,7 @@ namespace GoldendMSA
 
         public EncKDCRepPart(AsnElt body)
         {
-            foreach (AsnElt s in body.Sub)
-            {
+            foreach (var s in body.Sub)
                 switch (s.TagValue)
                 {
                     case 0:
@@ -42,8 +40,8 @@ namespace GoldendMSA
                         key_expiration = s.Sub[0].GetTime();
                         break;
                     case 4:
-                        UInt32 temp = Convert.ToUInt32(s.Sub[0].GetInteger());
-                        byte[] tempBytes = BitConverter.GetBytes(temp);
+                        var temp = Convert.ToUInt32(s.Sub[0].GetInteger());
+                        var tempBytes = BitConverter.GetBytes(temp);
                         flags = (Interop.TicketFlags)BitConverter.ToInt32(tempBytes, 0);
                         break;
                     case 5:
@@ -71,10 +69,7 @@ namespace GoldendMSA
                     case 12:
                         encryptedPaData = new EncryptedPAData(s.Sub[0]);
                         break;
-                    default:
-                        break;
                 }
-            }
         }
 
         // won't really ever need to *create* a KDC reply, so no Encode()
@@ -83,7 +78,7 @@ namespace GoldendMSA
 
         public LastReq lastReq { get; set; }
 
-        public UInt32 nonce { get; set; }
+        public uint nonce { get; set; }
 
         public DateTime key_expiration { get; set; }
 

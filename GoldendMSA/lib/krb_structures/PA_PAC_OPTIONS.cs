@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     /* PA-PAC-OPTIONS ::= SEQUENCE {
         KerberosFlags
@@ -21,12 +18,12 @@ namespace GoldendMSA
 
         public AsnElt Encode()
         {
-            List<AsnElt> allNodes = new List<AsnElt>();
-            AsnElt kerberosFlagsAsn = AsnElt.MakeBitString(kerberosFlags);
+            var allNodes = new List<AsnElt>();
+            var kerberosFlagsAsn = AsnElt.MakeBitString(kerberosFlags);
             kerberosFlagsAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.BIT_STRING, kerberosFlagsAsn);
-            AsnElt parent = AsnElt.MakeExplicit(0, kerberosFlagsAsn);
+            var parent = AsnElt.MakeExplicit(0, kerberosFlagsAsn);
             allNodes.Add(parent);
-            AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, allNodes.ToArray());
+            var seq = AsnElt.Make(AsnElt.SEQUENCE, allNodes.ToArray());
             return seq;
         }
     }

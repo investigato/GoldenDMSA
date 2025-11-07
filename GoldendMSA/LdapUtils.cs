@@ -4,37 +4,33 @@ using System.DirectoryServices;
 using System.DirectoryServices.ActiveDirectory;
 using System.Linq;
 using System.Net;
-
+using System.Net.Sockets;
 
 namespace GoldendMSA
 {
     public static class LdapUtils
     {
-        public static SearchResultCollection FindInConfigPartition(string domainFqdn, string ldapFilter, string[] attributes)
+        public static SearchResultCollection FindInConfigPartition(string domainFqdn, string ldapFilter,
+            string[] attributes)
         {
             using (var de = GetConfigNamingContextDe(domainFqdn))
             using (var ds = new DirectorySearcher(de, ldapFilter, attributes))
             {
                 ds.PageSize = 100;
-                SearchResultCollection results = ds.FindAll();
-                if (results == null)
-                {
-                    throw new Exception($"Could not find any results using LDAP filter: {ldapFilter}");
-                }
+                var results = ds.FindAll();
+                if (results == null) throw new Exception($"Could not find any results using LDAP filter: {ldapFilter}");
                 return results;
             }
         }
+
         public static SearchResultCollection FindInDomain(string domainFqdn, string ldapFilter, string[] attributes)
         {
             using (var de = GetDefaultNamingContextDe(domainFqdn))
             using (var ds = new DirectorySearcher(de, ldapFilter, attributes))
             {
                 ds.PageSize = 100;
-                SearchResultCollection results = ds.FindAll();
-                if (results == null)
-                {
-                    throw new Exception($"Could not find any results using LDAP filter: {ldapFilter}");
-                }
+                var results = ds.FindAll();
+                if (results == null) throw new Exception($"Could not find any results using LDAP filter: {ldapFilter}");
                 return results;
             }
         }
@@ -43,7 +39,7 @@ namespace GoldendMSA
         {
             using (var rootDse = GetRootDse(domainName))
             {
-                string adsPAth = $"LDAP://{domainName}/{rootDse.Properties["defaultNamingContext"].Value}";
+                var adsPAth = $"LDAP://{domainName}/{rootDse.Properties["defaultNamingContext"].Value}";
                 return new DirectoryEntry(adsPAth);
             }
         }
@@ -52,7 +48,7 @@ namespace GoldendMSA
         {
             using (var rootDse = GetRootDse(domainName))
             {
-                string adsPAth = $"LDAP://{domainName}/{rootDse.Properties["configurationNamingContext"].Value}";
+                var adsPAth = $"LDAP://{domainName}/{rootDse.Properties["configurationNamingContext"].Value}";
                 return new DirectoryEntry(adsPAth);
             }
         }
@@ -70,12 +66,9 @@ namespace GoldendMSA
 
                 // Resolve IP address
                 var ipAddresses = Dns.GetHostAddresses(dcFqdn);
-                var dcIp = ipAddresses.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)?.ToString();
+                var dcIp = ipAddresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)?.ToString();
 
-                if (string.IsNullOrEmpty(dcIp))
-                {
-                    throw new Exception($"Could not resolve IP address for {dcFqdn}");
-                }
+                if (string.IsNullOrEmpty(dcIp)) throw new Exception($"Could not resolve IP address for {dcFqdn}");
 
                 return (dcFqdn, dcIp);
             }
@@ -90,64 +83,59 @@ namespace GoldendMSA
             return new DirectoryEntry($"LDAP://{domainName}/RootDSE");
         }
 
-        private static String ExtractGMSAInfo(SearchResult result, bool samaccountname)
+        private static string ExtractGmsaInfo(SearchResult result, bool samAccountName)
         {
-
-            if (samaccountname)
-            {
-                return result.Properties["sAMAccountName"][0]?.ToString();
-            }
-            return Uri.UnescapeDataString(new Uri(result.Properties["adsPath"][0]?.ToString()).AbsolutePath.TrimStart('/'));
-
+            if (samAccountName) return result.Properties["sAMAccountName"][0]?.ToString();
+            return Uri.UnescapeDataString(
+                new Uri(result.Properties["adsPath"][0]?.ToString() ?? string.Empty).AbsolutePath.TrimStart('/'));
         }
 
-        public static List<String> SearchForGMSAsDirectly(string remoteName, bool attribute,string domain, string username = "", string password = "")
+        public static List<string> SearchForGmsAsDirectly(string remoteName, bool attribute, string domain,
+            string username = "", string password = "")
         {
-            List<string> gmsaList = new List<string>();
+            var gmsaList = new List<string>();
 
             try
             {
-                string ldapPath = $"LDAP://{remoteName}";
+                var ldapPath = $"LDAP://{remoteName}";
                 DirectoryEntry rootEntry;
 
                 if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
-                {
                     rootEntry = new DirectoryEntry(ldapPath, $"{domain}\\{username}", password,
-                                                 AuthenticationTypes.Secure);
-                }
+                        AuthenticationTypes.Secure);
                 else
-                {
                     rootEntry = new DirectoryEntry(ldapPath);
-                }
 
                 using (rootEntry)
                 using (var searcher = new DirectorySearcher(rootEntry))
                 {
                     // Direct LDAP filter for GMSAs
-                    searcher.Filter = "(&(|(objectClass=msDS-GroupManagedServiceAccount)(&(sAMAccountName=*$)(objectCategory=person)(objectClass=user))(objectCategory=msDS-ManagedServiceAccount)(objectClass=trustedDomain)(objectClass=computer))(!(objectClass=msDS-DelegatedManagedServiceAccount)))";
-                    searcher.PropertiesToLoad.AddRange(new[] {
+                    searcher.Filter =
+                        "(&(|(objectClass=msDS-GroupManagedServiceAccount)(&(sAMAccountName=*$)(objectCategory=person)(objectClass=user))(objectCategory=msDS-ManagedServiceAccount)(objectClass=trustedDomain)(objectClass=computer))(!(objectClass=msDS-DelegatedManagedServiceAccount)))";
+                    searcher.PropertiesToLoad.AddRange(new[]
+                    {
                         "sAMAccountName"
                     });
 
                     var results = searcher.FindAll();
 
                     foreach (SearchResult result in results)
-                    {
                         try
                         {
-                            string gmsa = ExtractGMSAInfo(result, attribute);
+                            var gmsa = ExtractGmsaInfo(result, attribute);
                             gmsaList.Add(gmsa);
                         }
                         catch (Exception ex)
                         {
+                            Console.WriteLine($"[!] Error extracting GMSA info: {ex.Message}");
                         }
-                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error during direct GMSA search: {ex.Message}");
+                Console.WriteLine($"[!] Error during direct GMSA search: {ex.Message}");
             }
+
             return gmsaList;
         }
     }

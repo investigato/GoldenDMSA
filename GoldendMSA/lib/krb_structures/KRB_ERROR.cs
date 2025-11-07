@@ -1,9 +1,9 @@
 ﻿using System;
-using Asn1;
 using System.Collections.Generic;
 using System.Text;
+using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class KRB_ERROR : Exception
     {
@@ -26,8 +26,7 @@ namespace GoldendMSA
 
         public KRB_ERROR(AsnElt body)
         {
-            foreach (AsnElt s in body.Sub)
-            {
+            foreach (var s in body.Sub)
                 switch (s.TagValue)
                 {
                     case 0:
@@ -70,21 +69,16 @@ namespace GoldendMSA
                         try
                         {
                             e_data = new List<PA_DATA>();
-                            AsnElt tmpData = AsnElt.Decode(s.Sub[0].GetOctetString());
-                            foreach (AsnElt tmp in tmpData.Sub)
-                            {
-                                e_data.Add(new PA_DATA(tmp));
-                            }
+                            var tmpData = AsnElt.Decode(s.Sub[0].GetOctetString());
+                            foreach (var tmp in tmpData.Sub) e_data.Add(new PA_DATA(tmp));
                         }
                         catch (NullReferenceException)
                         {
                             e_data = null;
                         }
-                        break;
-                    default:
+
                         break;
                 }
-            }
         }
 
         // don't ever really need to create a KRB_ERROR structure manually, so no Encode()

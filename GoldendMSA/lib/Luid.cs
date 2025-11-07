@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct LUID
+    public struct LUID : IEquatable<LUID>
     {
         public UInt32 LowPart;
         public Int32 HighPart;
@@ -12,8 +12,26 @@ namespace GoldendMSA
         public static implicit operator ulong(LUID luid)
         {
             // enable casting to a ulong
-            UInt64 Value = ((UInt64)luid.HighPart << 32);
-            return Value + luid.LowPart;
+            var value = (ulong)luid.HighPart << 32;
+            return value + luid.LowPart;
+        }
+
+        public bool Equals(LUID other)
+        {
+            return LowPart == other.LowPart && HighPart == other.HighPart;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is LUID other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((int)LowPart * 397) ^ HighPart;
+            }
         }
     }
 }

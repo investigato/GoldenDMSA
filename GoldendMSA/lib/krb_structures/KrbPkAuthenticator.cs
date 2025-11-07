@@ -1,32 +1,30 @@
-﻿using Asn1;
-using System;
+﻿using System;
 using System.Security.Cryptography;
+using Asn1;
 
-namespace GoldendMSA {
-    public class KrbPkAuthenticator {
-
-
+namespace GoldendMSA.lib
+{
+    public class KrbPkAuthenticator
+    {
         public KDCReqBody RequestBody { get; private set; }
         public uint CuSec { get; set; }
         public DateTime CTime { get; set; }
         public int Nonce { get; set; }
 
-        public AsnElt Encode() {
-
+        public AsnElt Encode()
+        {
             byte[] paChecksum;
 
-            using (SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider()) {
+            using (var sha1 = new SHA1CryptoServiceProvider())
+            {
                 paChecksum = sha1.ComputeHash(RequestBody.Encode().Encode());
             }
-        
-            AsnElt asnCTime = AsnElt.MakeString(AsnElt.GeneralizedTime, CTime.ToString("yyyyMMddHHmmssZ"));
 
-            return AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] {
-                    AsnElt.Make(AsnElt.CONTEXT,0, new AsnElt[] { AsnElt.MakeInteger(CuSec) }),
-                    AsnElt.Make(AsnElt.CONTEXT,1, new AsnElt[]{ asnCTime } ),
-                    AsnElt.Make(AsnElt.CONTEXT,2, new AsnElt[]{ AsnElt.MakeInteger(Nonce) } ),
-                    AsnElt.Make(AsnElt.CONTEXT,3, new AsnElt[]{ AsnElt.MakeBlob(paChecksum) })
-                });        
+            var asnCTime = AsnElt.MakeString(AsnElt.GeneralizedTime, CTime.ToString("yyyyMMddHHmmssZ"));
+
+            return AsnElt.Make(AsnElt.SEQUENCE, AsnElt.Make(AsnElt.CONTEXT, 0, AsnElt.MakeInteger(CuSec)),
+                AsnElt.Make(AsnElt.CONTEXT, 1, asnCTime), AsnElt.Make(AsnElt.CONTEXT, 2, AsnElt.MakeInteger(Nonce)),
+                AsnElt.Make(AsnElt.CONTEXT, 3, AsnElt.MakeBlob(paChecksum)));
         }
     }
 }

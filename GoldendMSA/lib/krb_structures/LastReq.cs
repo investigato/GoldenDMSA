@@ -1,9 +1,7 @@
 ﻿using System;
 using Asn1;
-using System.Text;
-using System.Collections.Generic;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class LastReq
     {
@@ -14,8 +12,7 @@ namespace GoldendMSA
 
         public LastReq(AsnElt body)
         {
-            foreach (AsnElt s in body.Sub[0].Sub)
-            {
+            foreach (var s in body.Sub[0].Sub)
                 switch (s.TagValue)
                 {
                     case 0:
@@ -24,14 +21,11 @@ namespace GoldendMSA
                     case 1:
                         lr_value = s.Sub[0].GetTime();
                         break;
-                    default:
-                        break;
                 }
-            }
         }
 
 
-        public Int32 lr_type { get; set; }
+        public int lr_type { get; set; }
 
         public DateTime lr_value { get; set; }
     }

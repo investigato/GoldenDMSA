@@ -15,7 +15,10 @@
 
 # Mono auto generated files
 mono_crash.*
-
+.idea
+.vscode
+qodana.yaml
+packages/
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

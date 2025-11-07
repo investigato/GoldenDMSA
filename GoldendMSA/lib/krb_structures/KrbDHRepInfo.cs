@@ -1,30 +1,30 @@
-﻿using Asn1;
-using System;
+﻿using System;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
+using Asn1;
 
-namespace GoldendMSA {
-    public class KrbDHRepInfo{
-        public byte[] ServerDHNonce { get; private set; }
-        public byte[] DHSignedData { get; private set; }
-        public KrbKDCDHKeyInfo KDCDHKeyInfo { get; private set; }
+namespace GoldendMSA.lib
+{
+    public class KrbDHRepInfo
+    {
+        public KrbDHRepInfo(AsnElt asnElt)
+        {
+            if (asnElt.TagValue != AsnElt.SEQUENCE) throw new ArgumentException("Expected SEQUENCE for type DHRepInfo");
 
-        public KrbDHRepInfo(AsnElt asnElt) {
-
-            if(asnElt.TagValue != AsnElt.SEQUENCE) {
-                throw new ArgumentException("Expected SEQUENCE for type DHRepInfo");
-            }
-
-            foreach(AsnElt seq in asnElt.Sub) {
-                switch (seq.TagValue) {
+            foreach (var seq in asnElt.Sub)
+                switch (seq.TagValue)
+                {
                     case 0: //dhSignedData
                         DHSignedData = seq.GetOctetString();
-                        SignedCms cms = new SignedCms();
+                        var cms = new SignedCms();
                         cms.Decode(DHSignedData);
 
-                        try {
+                        try
+                        {
                             cms.CheckSignature(true);
-                        } catch (CryptographicException) {
+                        }
+                        catch (CryptographicException)
+                        {
                             Console.WriteLine("[!] DHRepInfo Signature Not Valid! - Do you even care?");
                         }
 
@@ -35,7 +35,10 @@ namespace GoldendMSA {
                         ServerDHNonce = seq.GetOctetString();
                         break;
                 }
-            }
         }
+
+        public byte[] ServerDHNonce { get; private set; }
+        public byte[] DHSignedData { get; }
+        public KrbKDCDHKeyInfo KDCDHKeyInfo { get; private set; }
     }
 }

@@ -1,18 +1,16 @@
 ﻿using Asn1;
 
-namespace GoldendMSA {
-    public class KrbSubjectPublicKeyInfo {
-
+namespace GoldendMSA.lib
+{
+    public class KrbSubjectPublicKeyInfo
+    {
         public KrbAlgorithmIdentifier Algorithm { get; set; }
         public byte[] SubjectPublicKey { get; set; }
 
-        public AsnElt Encode() {
+        public AsnElt Encode()
+        {
             return AsnElt.Make(
-                AsnElt.SEQUENCE, new AsnElt[] {
-                    Algorithm.Encode(),
-                    AsnElt.MakeBitString(SubjectPublicKey)
-            });
-
+                AsnElt.SEQUENCE, Algorithm.Encode(), AsnElt.MakeBitString(SubjectPublicKey));
         }
     }
 }

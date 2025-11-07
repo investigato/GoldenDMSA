@@ -1,25 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.DirectoryServices;
-using System.Linq;
-using System.Reflection;
 using System.Security.Principal;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GoldendMSA
 {
     public sealed class GmsaAccount
     {
-        private static readonly string[] GmsaRequiredLdapAttributes = { "msds-ManagedPasswordID", "samAccountName", "objectSid", "samAccountName", "distinguishedName" };
-        private static readonly string MsdsManagedPasswordIDAttributeName = "msds-ManagedPasswordID";
+        private static readonly string[] GmsaRequiredLdapAttributes =
+            { "msds-ManagedPasswordID", "samAccountName", "objectSid", "samAccountName", "distinguishedName" };
+
+        private static readonly string MsdsManagedPasswordIdAttributeName = "msds-ManagedPasswordID";
         private static readonly string IsGmsaAccountLdapFilter = "(objectCategory=msDS-GroupManagedServiceAccount)";
-
-        public string DistinguishedName { get; private set; }
-
-        public string SamAccountName { get; private set; }
-        public SecurityIdentifier Sid { get; private set; }
-        public MsdsManagedPasswordId ManagedPasswordId { get; private set; }
 
 
         private GmsaAccount(
@@ -34,8 +26,14 @@ namespace GoldendMSA
             SamAccountName = samAccountName;
         }
 
+        public string DistinguishedName { get; private set; }
+
+        private string SamAccountName { get; }
+        private SecurityIdentifier Sid { get; }
+        private MsdsManagedPasswordId ManagedPasswordId { get; }
+
         /// <summary>
-        /// Returns GMSA account information given its SID
+        ///     Returns GMSA account information given its SID
         /// </summary>
         /// <param name="domainFqdn">FQDN of the domain to search</param>
         /// <param name="sid">The SID of the GMSA</param>
@@ -48,7 +46,7 @@ namespace GoldendMSA
             if (domainFqdn is null)
                 throw new ArgumentNullException(nameof(domainFqdn));
 
-            string ldapFilter = $"(&{IsGmsaAccountLdapFilter}(objectsid={sid}))";
+            var ldapFilter = $"(&{IsGmsaAccountLdapFilter}(objectsid={sid}))";
             var results = LdapUtils.FindInDomain(domainFqdn, ldapFilter, GmsaRequiredLdapAttributes);
 
             if (results == null || results.Count == 0)
@@ -58,16 +56,14 @@ namespace GoldendMSA
         }
 
         /// <summary>
-        /// Returns all GMSA account in domain
+        ///     Returns all GMSA account in domain
         /// </summary>
         /// <param name="domainFqdn">FQDN of the domain to search</param>
         /// <returns></returns>
         public static IEnumerable<GmsaAccount> FindAllGmsaAccountsInDomain(string domainFqdn)
         {
             if (string.IsNullOrEmpty(domainFqdn))
-            {
                 throw new ArgumentException($"'{nameof(domainFqdn)}' cannot be null or empty.", nameof(domainFqdn));
-            }
 
             var results = LdapUtils.FindInDomain(domainFqdn, IsGmsaAccountLdapFilter, GmsaRequiredLdapAttributes);
 
@@ -93,20 +89,15 @@ namespace GoldendMSA
 
         private static GmsaAccount GetGmsaFromSearchResult(SearchResult sr)
         {
-            if (sr is null)
-            {
-                throw new ArgumentNullException(nameof(sr));
-            }
+            if (sr is null) throw new ArgumentNullException(nameof(sr));
 
             foreach (var attr in GmsaRequiredLdapAttributes)
-            {
                 if (!sr.Properties.Contains(attr))
                     throw new KeyNotFoundException($"Attribute {attr} was not found");
-            }
 
-            string dn = sr.Properties["distinguishedName"][0].ToString();
+            var dn = sr.Properties["distinguishedName"][0].ToString();
 
-            var pwdBlob = (byte[])(sr.Properties[MsdsManagedPasswordIDAttributeName][0]);
+            var pwdBlob = (byte[])sr.Properties[MsdsManagedPasswordIdAttributeName][0];
             var pwdId = new MsdsManagedPasswordId(pwdBlob);
 
             var sid = new SecurityIdentifier((byte[])sr.Properties["objectSid"][0], 0);
@@ -117,13 +108,13 @@ namespace GoldendMSA
         }
 
 
-
         public override string ToString()
         {
-            string result = $"sAMAccountName:\t\t{this.SamAccountName}{Environment.NewLine}";
-            result += $"objectSid:\t\t\t{this.Sid}{Environment.NewLine}";
-            result += $"rootKeyGuid:\t\t{this.ManagedPasswordId.RootKeyIdentifier}{Environment.NewLine}";
-            result += $"msds-ManagedPasswordID:\t{Convert.ToBase64String(this.ManagedPasswordId.MsdsManagedPasswordIdBytes)}{Environment.NewLine}";
+            var result = $"sAMAccountName:\t\t{SamAccountName}{Environment.NewLine}";
+            result += $"objectSid:\t\t\t{Sid}{Environment.NewLine}";
+            result += $"rootKeyGuid:\t\t{ManagedPasswordId.RootKeyIdentifier}{Environment.NewLine}";
+            result +=
+                $"msds-ManagedPasswordID:\t{Convert.ToBase64String(ManagedPasswordId.MsdsManagedPasswordIdBytes)}{Environment.NewLine}";
             result += $"----------------------------------------------{Environment.NewLine}";
 
             return result;

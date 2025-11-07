@@ -1,21 +1,17 @@
 ﻿using Asn1;
-using System;
-using System.Text;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
-    class PA_KEY_LIST_REQ
+    internal class PA_KEY_LIST_REQ
     {
+        public int Enctype { get; set; }
         // KERB-KEY-LIST-REQ::= SEQUENCE OF Int32 -- encryption type -- 
 
         public AsnElt Encode()
         {
-            AsnElt enctypeAsn = AsnElt.MakeInteger(Enctype);
-            AsnElt enctypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { enctypeAsn });
+            var enctypeAsn = AsnElt.MakeInteger(Enctype);
+            var enctypeSeq = AsnElt.Make(AsnElt.SEQUENCE, enctypeAsn);
             return enctypeSeq;
         }
-
-        public Int32 Enctype { get; set; }
-
     }
 }

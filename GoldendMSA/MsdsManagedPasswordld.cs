@@ -1,60 +1,62 @@
 ﻿using System;
 using System.Security.Principal;
+using System.Text;
 
 namespace GoldendMSA
 {
     public class MsdsManagedPasswordId
     {
-        public byte[] MsdsManagedPasswordIdBytes { get; private set; }
-
-        public int Version { get; set; }
-        public int Reserved { get; set; }
-        public int isPublicKey { get; set; }
-        public int L0Index { get; set; }
-        public int L1Index { get; set; }
-        public int L2Index { get; set; }
-        public Guid RootKeyIdentifier { get; set; }
-        public int cbUnknown { get; set; }
-        public int cbDomainName { get; set; }
-        public int cbForestName { get; set; }
-        public byte[] Unknown { get; set; }
-        public string DomainName { get; set; }
-        public string ForestName { get; set; }
-
         public MsdsManagedPasswordId(byte[] pwdBlob)
         {
             MsdsManagedPasswordIdBytes = pwdBlob;
 
             Version = BitConverter.ToInt32(pwdBlob, 0);
             Reserved = BitConverter.ToInt32(pwdBlob, 4);
-            isPublicKey = BitConverter.ToInt32(pwdBlob, 8);
+            IsPublicKey = BitConverter.ToInt32(pwdBlob, 8);
             L0Index = BitConverter.ToInt32(pwdBlob, 12);
             L1Index = BitConverter.ToInt32(pwdBlob, 16);
             L2Index = BitConverter.ToInt32(pwdBlob, 20);
-            byte[] temp = new byte[16];
+            var temp = new byte[16];
             Array.Copy(pwdBlob, 24, temp, 0, 16);
             RootKeyIdentifier = new Guid(temp);
-            cbUnknown = BitConverter.ToInt32(pwdBlob, 40);
-            cbDomainName = BitConverter.ToInt32(pwdBlob, 44);
-            cbForestName = BitConverter.ToInt32(pwdBlob, 48);
-            if (cbUnknown > 0)
+            CbUnknown = BitConverter.ToInt32(pwdBlob, 40);
+            CbDomainName = BitConverter.ToInt32(pwdBlob, 44);
+            CbForestName = BitConverter.ToInt32(pwdBlob, 48);
+            if (CbUnknown > 0)
             {
-                Unknown = new byte[cbUnknown];
-                Array.Copy(pwdBlob, 52, Unknown, 0, cbUnknown);
+                Unknown = new byte[CbUnknown];
+                Array.Copy(pwdBlob, 52, Unknown, 0, CbUnknown);
             }
             else
             {
                 Unknown = null;
             }
-            DomainName = System.Text.Encoding.Unicode.GetString(pwdBlob, 52 + cbUnknown, cbDomainName);
-            ForestName = System.Text.Encoding.Unicode.GetString(pwdBlob, 52 + cbDomainName + cbUnknown, cbForestName);
+
+            DomainName = Encoding.Unicode.GetString(pwdBlob, 52 + CbUnknown, CbDomainName);
+            ForestName = Encoding.Unicode.GetString(pwdBlob, 52 + CbDomainName + CbUnknown, CbForestName);
         }
 
+        public byte[] MsdsManagedPasswordIdBytes { get; private set; }
 
-        public static MsdsManagedPasswordId GetManagedPasswordIDBySid(string domainName, SecurityIdentifier sid)
+        public int Version { get; set; }
+        public int Reserved { get; set; }
+        public int IsPublicKey { get; set; }
+        public int L0Index { get; set; }
+        public int L1Index { get; set; }
+        public int L2Index { get; set; }
+        public Guid RootKeyIdentifier { get; set; }
+        public int CbUnknown { get; set; }
+        public int CbDomainName { get; set; }
+        public int CbForestName { get; set; }
+        public byte[] Unknown { get; set; }
+        public string DomainName { get; set; }
+        public string ForestName { get; set; }
+
+
+        public static MsdsManagedPasswordId GetManagedPasswordIdBySid(string domainName, SecurityIdentifier sid)
         {
             string[] attributes = { "msds-ManagedPasswordID" };
-            string ldapFilter = $"(objectSID={sid})";
+            var ldapFilter = $"(objectSID={sid})";
 
             var results = LdapUtils.FindInDomain(domainName, ldapFilter, attributes);
 

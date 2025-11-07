@@ -1,8 +1,7 @@
-﻿using Asn1;
-using System;
-using System.Text;
+﻿using System;
+using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     //PA-ENC-TS-ENC   ::= SEQUENCE {
     //        patimestamp[0]               KerberosTime, -- client's time
@@ -16,19 +15,17 @@ namespace GoldendMSA
             patimestamp = DateTime.UtcNow;
         }
 
+        public DateTime patimestamp { get; set; }
+
         public AsnElt Encode()
         {
-            AsnElt patimestampAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, patimestamp.ToString("yyyyMMddHHmmssZ"));
-            AsnElt patimestampSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { patimestampAsn });
+            var patimestampAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, patimestamp.ToString("yyyyMMddHHmmssZ"));
+            var patimestampSeq = AsnElt.Make(AsnElt.SEQUENCE, patimestampAsn);
             patimestampSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, patimestampSeq);
 
-            AsnElt totalSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { patimestampSeq });
+            var totalSeq = AsnElt.Make(AsnElt.SEQUENCE, patimestampSeq);
 
             return totalSeq;
         }
-
-        public DateTime patimestamp { get; set; }
-
-
     }
 }

@@ -1,8 +1,7 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using Asn1;
-using System.Collections.Generic;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     //EncKrbCredPart  ::= [APPLICATION 29] SEQUENCE {
     //        ticket-info     [0] SEQUENCE OF KrbCredInfo,
@@ -21,24 +20,23 @@ namespace GoldendMSA
             ticket_info = new List<KrbCredInfo>();
         }
 
+        public List<KrbCredInfo> ticket_info { get; set; }
+
         public AsnElt Encode()
         {
             // ticket-info     [0] SEQUENCE OF KrbCredInfo
             //  assume just one ticket-info for now
             //  TODO: handle multiple ticket-infos
-            AsnElt infoAsn = ticket_info[0].Encode();
-            AsnElt seq1 = AsnElt.Make(AsnElt.SEQUENCE, new[] { infoAsn });
-            AsnElt seq2 = AsnElt.Make(AsnElt.SEQUENCE, new[] { seq1 });
+            var infoAsn = ticket_info[0].Encode();
+            var seq1 = AsnElt.Make(AsnElt.SEQUENCE, infoAsn);
+            var seq2 = AsnElt.Make(AsnElt.SEQUENCE, seq1);
             seq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, seq2);
 
-            AsnElt totalSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { seq2 });
-            AsnElt totalSeq2 = AsnElt.Make(AsnElt.SEQUENCE, new[] { totalSeq });
+            var totalSeq = AsnElt.Make(AsnElt.SEQUENCE, seq2);
+            var totalSeq2 = AsnElt.Make(AsnElt.SEQUENCE, totalSeq);
             totalSeq2 = AsnElt.MakeImplicit(AsnElt.APPLICATION, 29, totalSeq2);
 
             return totalSeq2;
         }
-
-        public List<KrbCredInfo> ticket_info { get; set; }
-
     }
 }

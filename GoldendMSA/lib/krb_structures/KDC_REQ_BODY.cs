@@ -1,9 +1,9 @@
 ﻿using System;
-using Asn1;
-using System.Text;
 using System.Collections.Generic;
+using System.Globalization;
+using Asn1;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class KDCReqBody
     {
@@ -36,151 +36,22 @@ namespace GoldendMSA
             // added ability to remove cname from request
             // seems to be useful for cross domain stuff
             // didn't see a cname in "real" S4U request traffic
-            if (c)
-            {
-                cname = new PrincipalName();
-            }
+            if (c) cname = new PrincipalName();
 
             sname = new PrincipalName();
 
 
-            till = DateTime.ParseExact("20370913024805Z", "yyyyMMddHHmmssZ", System.Globalization.CultureInfo.InvariantCulture);
+            till = DateTime.ParseExact("20370913024805Z", "yyyyMMddHHmmssZ", CultureInfo.InvariantCulture);
 
             // add rtime for AS-REQs
-            if (r)
-            {
-                rtime = DateTime.ParseExact("20370913024805Z", "yyyyMMddHHmmssZ", System.Globalization.CultureInfo.InvariantCulture);
-            }
+            if (r) rtime = DateTime.ParseExact("20370913024805Z", "yyyyMMddHHmmssZ", CultureInfo.InvariantCulture);
 
             var rand = new Random();
-            nonce = (UInt32)rand.Next(1, Int32.MaxValue);
+            nonce = (uint)rand.Next(1, int.MaxValue);
 
             additional_tickets = new List<Ticket>();
 
             etypes = new List<Interop.KERB_ETYPE>();
-        }
-
-
-        public AsnElt Encode()
-        {
-            // TODO: error-checking!
-
-            List<AsnElt> allNodes = new List<AsnElt>();
-
-            // kdc-options             [0] KDCOptions
-            byte[] kdcOptionsBytes = BitConverter.GetBytes((UInt32)kdcOptions);
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(kdcOptionsBytes);
-            }
-            AsnElt kdcOptionsAsn = AsnElt.MakeBitString(kdcOptionsBytes);
-            AsnElt kdcOptionsSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { kdcOptionsAsn });
-            kdcOptionsSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, kdcOptionsSeq);
-            allNodes.Add(kdcOptionsSeq);
-
-
-            // cname                   [1] PrincipalName
-            if (cname != null)
-            {
-                AsnElt cnameElt = cname.Encode();
-                cnameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, cnameElt);
-                allNodes.Add(cnameElt);
-            }
-
-
-            // realm                   [2] Realm
-            //                          --Server's realm
-            //                          -- Also client's in AS-REQ --
-            AsnElt realmAsn = AsnElt.MakeString(AsnElt.UTF8String, realm);
-            realmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, realmAsn);
-            AsnElt realmSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { realmAsn });
-            realmSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, realmSeq);
-            allNodes.Add(realmSeq);
-
-
-            // sname                   [3] PrincipalName OPTIONAL
-            AsnElt snameElt = sname.Encode();
-            snameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, snameElt);
-            allNodes.Add(snameElt);
-
-
-            // from                    [4] KerberosTime OPTIONAL
-
-
-            // till                    [5] KerberosTime
-            AsnElt tillAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, till.ToString("yyyyMMddHHmmssZ"));
-            AsnElt tillSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { tillAsn });
-            tillSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 5, tillSeq);
-            allNodes.Add(tillSeq);
-
-
-            // rtime                   [6] KerberosTime
-            if (rtime.Year > 0001)
-            {
-                AsnElt rtimeAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, rtime.ToString("yyyyMMddHHmmssZ"));
-                AsnElt rtimeSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { rtimeAsn });
-                rtimeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 6, rtimeSeq);
-                allNodes.Add(rtimeSeq);
-            }
-
-            // nonce                   [7] UInt32
-            AsnElt nonceAsn = AsnElt.MakeInteger(nonce);
-            AsnElt nonceSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { nonceAsn });
-            nonceSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 7, nonceSeq);
-            allNodes.Add(nonceSeq);
-
-
-            // etype                   [8] SEQUENCE OF Int32 -- EncryptionType -- in preference order --
-            List <AsnElt> etypeList = new List<AsnElt>();
-            foreach (Interop.KERB_ETYPE etype in etypes)
-            {
-                AsnElt etypeAsn = AsnElt.MakeInteger((Int32)etype);
-                //AsnElt etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { etypeAsn });
-                etypeList.Add(etypeAsn);
-            }
-            AsnElt etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, etypeList.ToArray());
-            AsnElt etypeSeqTotal1 = AsnElt.Make(AsnElt.SEQUENCE, etypeList.ToArray());
-            AsnElt etypeSeqTotal2 = AsnElt.Make(AsnElt.SEQUENCE, etypeSeqTotal1);
-            etypeSeqTotal2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 8, etypeSeqTotal2);
-            allNodes.Add(etypeSeqTotal2);
-
-
-            // addresses               [9] HostAddresses OPTIONAL
-            if (addresses != null)
-            {
-                List<AsnElt> addrList = new List<AsnElt>();
-                foreach (HostAddress addr in addresses)
-                {
-                    AsnElt addrElt = addr.Encode();
-                    addrList.Add(addrElt);
-                }
-                AsnElt addrSeqTotal1 = AsnElt.Make(AsnElt.SEQUENCE, addrList.ToArray());
-                AsnElt addrSeqTotal2 = AsnElt.Make(AsnElt.SEQUENCE, addrSeqTotal1);
-                addrSeqTotal2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 9, addrSeqTotal2);
-                allNodes.Add(addrSeqTotal2);
-            }
-
-            // enc-authorization-data  [10] EncryptedData OPTIONAL
-            if (enc_authorization_data != null)
-            {
-                AsnElt authorizationEncryptedDataASN = enc_authorization_data.Encode();
-                AsnElt authorizationEncryptedDataSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { authorizationEncryptedDataASN });
-                authorizationEncryptedDataSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 10, authorizationEncryptedDataSeq);
-                allNodes.Add(authorizationEncryptedDataSeq);
-            }
-
-            // additional-tickets      [11] SEQUENCE OF Ticket OPTIONAL
-            if (additional_tickets.Count > 0) {
-                AsnElt ticketAsn = additional_tickets[0].Encode();
-                AsnElt ticketSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { ticketAsn });
-                AsnElt ticketSeq2 = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { ticketSeq });
-                ticketSeq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 11, ticketSeq2);
-                allNodes.Add(ticketSeq2);
-            }
-
-            AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, allNodes.ToArray());
-
-            return seq;
         }
 
 
@@ -198,7 +69,7 @@ namespace GoldendMSA
 
         public DateTime rtime { get; set; }
 
-        public UInt32 nonce { get; set; }
+        public uint nonce { get; set; }
 
         public List<Interop.KERB_ETYPE> etypes { get; set; }
 
@@ -207,5 +78,128 @@ namespace GoldendMSA
         public EncryptedData enc_authorization_data { get; set; }
 
         public List<Ticket> additional_tickets { get; set; }
+
+
+        public AsnElt Encode()
+        {
+            // TODO: error-checking!
+
+            var allNodes = new List<AsnElt>();
+
+            // kdc-options             [0] KDCOptions
+            var kdcOptionsBytes = BitConverter.GetBytes((uint)kdcOptions);
+            if (BitConverter.IsLittleEndian) Array.Reverse(kdcOptionsBytes);
+            var kdcOptionsAsn = AsnElt.MakeBitString(kdcOptionsBytes);
+            var kdcOptionsSeq = AsnElt.Make(AsnElt.SEQUENCE, kdcOptionsAsn);
+            kdcOptionsSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, kdcOptionsSeq);
+            allNodes.Add(kdcOptionsSeq);
+
+
+            // cname                   [1] PrincipalName
+            if (cname != null)
+            {
+                var cnameElt = cname.Encode();
+                cnameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, cnameElt);
+                allNodes.Add(cnameElt);
+            }
+
+
+            // realm                   [2] Realm
+            //                          --Server's realm
+            //                          -- Also client's in AS-REQ --
+            var realmAsn = AsnElt.MakeString(AsnElt.UTF8String, realm);
+            realmAsn = AsnElt.MakeImplicit(AsnElt.UNIVERSAL, AsnElt.GeneralString, realmAsn);
+            var realmSeq = AsnElt.Make(AsnElt.SEQUENCE, realmAsn);
+            realmSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, realmSeq);
+            allNodes.Add(realmSeq);
+
+
+            // sname                   [3] PrincipalName OPTIONAL
+            var snameElt = sname.Encode();
+            snameElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 3, snameElt);
+            allNodes.Add(snameElt);
+
+
+            // from                    [4] KerberosTime OPTIONAL
+
+
+            // till                    [5] KerberosTime
+            var tillAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, till.ToString("yyyyMMddHHmmssZ"));
+            var tillSeq = AsnElt.Make(AsnElt.SEQUENCE, tillAsn);
+            tillSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 5, tillSeq);
+            allNodes.Add(tillSeq);
+
+
+            // rtime                   [6] KerberosTime
+            if (rtime.Year > 0001)
+            {
+                var rtimeAsn = AsnElt.MakeString(AsnElt.GeneralizedTime, rtime.ToString("yyyyMMddHHmmssZ"));
+                var rtimeSeq = AsnElt.Make(AsnElt.SEQUENCE, rtimeAsn);
+                rtimeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 6, rtimeSeq);
+                allNodes.Add(rtimeSeq);
+            }
+
+            // nonce                   [7] UInt32
+            var nonceAsn = AsnElt.MakeInteger(nonce);
+            var nonceSeq = AsnElt.Make(AsnElt.SEQUENCE, nonceAsn);
+            nonceSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 7, nonceSeq);
+            allNodes.Add(nonceSeq);
+
+
+            // etype                   [8] SEQUENCE OF Int32 -- EncryptionType -- in preference order --
+            var etypeList = new List<AsnElt>();
+            foreach (var etype in etypes)
+            {
+                var etypeAsn = AsnElt.MakeInteger((int)etype);
+                //AsnElt etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new[] { etypeAsn });
+                etypeList.Add(etypeAsn);
+            }
+
+            var etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, etypeList.ToArray());
+            var etypeSeqTotal1 = AsnElt.Make(AsnElt.SEQUENCE, etypeList.ToArray());
+            var etypeSeqTotal2 = AsnElt.Make(AsnElt.SEQUENCE, etypeSeqTotal1);
+            etypeSeqTotal2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 8, etypeSeqTotal2);
+            allNodes.Add(etypeSeqTotal2);
+
+
+            // addresses               [9] HostAddresses OPTIONAL
+            if (addresses != null)
+            {
+                var addrList = new List<AsnElt>();
+                foreach (var addr in addresses)
+                {
+                    var addrElt = addr.Encode();
+                    addrList.Add(addrElt);
+                }
+
+                var addrSeqTotal1 = AsnElt.Make(AsnElt.SEQUENCE, addrList.ToArray());
+                var addrSeqTotal2 = AsnElt.Make(AsnElt.SEQUENCE, addrSeqTotal1);
+                addrSeqTotal2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 9, addrSeqTotal2);
+                allNodes.Add(addrSeqTotal2);
+            }
+
+            // enc-authorization-data  [10] EncryptedData OPTIONAL
+            if (enc_authorization_data != null)
+            {
+                var authorizationEncryptedDataASN = enc_authorization_data.Encode();
+                var authorizationEncryptedDataSeq = AsnElt.Make(AsnElt.SEQUENCE, authorizationEncryptedDataASN);
+                authorizationEncryptedDataSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 10, authorizationEncryptedDataSeq);
+                allNodes.Add(authorizationEncryptedDataSeq);
+            }
+
+            // additional-tickets      [11] SEQUENCE OF Ticket OPTIONAL
+            if (additional_tickets.Count > 0)
+            {
+                var ticketAsn = additional_tickets[0].Encode();
+                var ticketSeq = AsnElt.Make(AsnElt.SEQUENCE, ticketAsn);
+                var ticketSeq2 = AsnElt.Make(AsnElt.SEQUENCE, ticketSeq);
+                ticketSeq2 = AsnElt.MakeImplicit(AsnElt.CONTEXT, 11, ticketSeq2);
+                allNodes.Add(ticketSeq2);
+            }
+
+            var seq = AsnElt.Make(AsnElt.SEQUENCE, allNodes.ToArray());
+
+            return seq;
+        }
     }
 }

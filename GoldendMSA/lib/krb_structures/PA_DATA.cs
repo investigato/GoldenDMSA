@@ -1,10 +1,9 @@
-﻿using System;
+﻿using System.Security.Cryptography;
 using Asn1;
-using System.Security.Cryptography.X509Certificates;
-using System.Security.Cryptography;
+using Cryptography;
 
-
-namespace GoldendMSA {
+namespace GoldendMSA.lib
+{
     public class PA_DATA
     {
         public static readonly Oid DiffieHellman = new Oid("1.2.840.10046.2.1");
@@ -29,14 +28,15 @@ namespace GoldendMSA {
 
             type = Interop.PADATA_TYPE.ENC_TIMESTAMP;
 
-            PA_ENC_TS_ENC temp = new PA_ENC_TS_ENC();
+            var temp = new PA_ENC_TS_ENC();
 
-            byte[] rawBytes = temp.Encode().Encode();
-            byte[] key = Helpers.StringToByteArray(keyString);
+            var rawBytes = temp.Encode().Encode();
+            var key = Helpers.StringToByteArray(keyString);
 
             // KRB_KEY_USAGE_AS_REQ_PA_ENC_TIMESTAMP == 1
 
-            byte[] encBytes = Cryptography.CryptoActions.KerberosEncrypt(etype, Interop.KRB_KEY_USAGE_AS_REQ_PA_ENC_TIMESTAMP, key, rawBytes);
+            var encBytes =
+                CryptoActions.KerberosEncrypt(etype, Interop.KRB_KEY_USAGE_AS_REQ_PA_ENC_TIMESTAMP, key, rawBytes);
 
             value = new EncryptedData((int)etype, encBytes);
         }
@@ -53,15 +53,16 @@ namespace GoldendMSA {
             try
             {
                 type = (Interop.PADATA_TYPE)body.Sub[0].Sub[0].GetInteger();
-                byte[] valueBytes = body.Sub[1].Sub[0].GetOctetString();
+                var valueBytes = body.Sub[1].Sub[0].GetOctetString();
             }
             catch
             {
                 type = (Interop.PADATA_TYPE)body.Sub[0].Sub[0].Sub[0].GetInteger();
-                byte[] valueBytes = body.Sub[0].Sub[1].Sub[0].GetOctetString();
+                var valueBytes = body.Sub[0].Sub[1].Sub[0].GetOctetString();
             }
 
-            switch (type) {
+            switch (type)
+            {
                 case Interop.PADATA_TYPE.PA_PAC_REQUEST:
                     value = new KERB_PA_PAC_REQUEST(AsnElt.Decode(body.Sub[1].Sub[0].CopyValue()));
                     break;
@@ -83,11 +84,15 @@ namespace GoldendMSA {
             }
         }
 
+        public Interop.PADATA_TYPE type { get; set; }
+
+        public object value { get; set; }
+
         public AsnElt Encode()
         {
             // padata-type     [1] Int32
-            AsnElt typeElt = AsnElt.MakeInteger((long)type);
-            AsnElt nameTypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { typeElt });
+            var typeElt = AsnElt.MakeInteger((long)type);
+            var nameTypeSeq = AsnElt.Make(AsnElt.SEQUENCE, typeElt);
             nameTypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, nameTypeSeq);
 
             AsnElt paDataElt;
@@ -99,58 +104,55 @@ namespace GoldendMSA {
                 paDataElt = ((KERB_PA_PAC_REQUEST)value).Encode();
                 paDataElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, paDataElt);
 
-                AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { nameTypeSeq, paDataElt });
+                var seq = AsnElt.Make(AsnElt.SEQUENCE, nameTypeSeq, paDataElt);
                 return seq;
             }
-            else if (type == Interop.PADATA_TYPE.ENC_TIMESTAMP)
+
+            if (type == Interop.PADATA_TYPE.ENC_TIMESTAMP)
             {
                 // used for AS-REQs
-                AsnElt blob = AsnElt.MakeBlob(((EncryptedData)value).Encode().Encode());
-                AsnElt blobSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { blob });
+                var blob = AsnElt.MakeBlob(((EncryptedData)value).Encode().Encode());
+                var blobSeq = AsnElt.Make(AsnElt.SEQUENCE, blob);
                 blobSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, blobSeq);
 
-                AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { nameTypeSeq, blobSeq });
+                var seq = AsnElt.Make(AsnElt.SEQUENCE, nameTypeSeq, blobSeq);
                 return seq;
             }
-            else if (type == Interop.PADATA_TYPE.PA_PAC_OPTIONS)
+
+            if (type == Interop.PADATA_TYPE.PA_PAC_OPTIONS)
             {
-                AsnElt blob = AsnElt.MakeBlob(((PA_PAC_OPTIONS)value).Encode().Encode());
-                AsnElt blobSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { blob });
+                var blob = AsnElt.MakeBlob(((PA_PAC_OPTIONS)value).Encode().Encode());
+                var blobSeq = AsnElt.Make(AsnElt.SEQUENCE, blob);
 
                 paDataElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, blobSeq);
 
-                AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { nameTypeSeq, paDataElt });
+                var seq = AsnElt.Make(AsnElt.SEQUENCE, nameTypeSeq, paDataElt);
                 return seq;
             }
-            else if(type == Interop.PADATA_TYPE.PK_AS_REQ) {
 
-                AsnElt blob = AsnElt.MakeBlob(((PA_PK_AS_REQ)value).Encode().Encode());
-                AsnElt blobSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { blob });
+            if (type == Interop.PADATA_TYPE.PK_AS_REQ)
+            {
+                var blob = AsnElt.MakeBlob(((PA_PK_AS_REQ)value).Encode().Encode());
+                var blobSeq = AsnElt.Make(AsnElt.SEQUENCE, blob);
 
                 paDataElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, blobSeq);
 
-                AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { nameTypeSeq, paDataElt });
+                var seq = AsnElt.Make(AsnElt.SEQUENCE, nameTypeSeq, paDataElt);
                 return seq;
             }
-            else if (type == Interop.PADATA_TYPE.KEY_LIST_REQ)
-            {
 
-                AsnElt blob = AsnElt.MakeBlob(((PA_KEY_LIST_REQ)value).Encode().Encode());
-                AsnElt blobSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { blob });
+            if (type == Interop.PADATA_TYPE.KEY_LIST_REQ)
+            {
+                var blob = AsnElt.MakeBlob(((PA_KEY_LIST_REQ)value).Encode().Encode());
+                var blobSeq = AsnElt.Make(AsnElt.SEQUENCE, blob);
 
                 paDataElt = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, blobSeq);
 
-                AsnElt seq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { nameTypeSeq, paDataElt });
+                var seq = AsnElt.Make(AsnElt.SEQUENCE, nameTypeSeq, paDataElt);
                 return seq;
             }
-            else
-            {
-                return null;
-            }
+
+            return null;
         }
-
-        public Interop.PADATA_TYPE type { get; set; }
-
-        public Object value { get; set; }
     }
 }

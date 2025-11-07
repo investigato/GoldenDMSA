@@ -1,7 +1,7 @@
-﻿using GoldendMSA.Unsafe;
-using System;
+﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using GoldendMSA.Unsafe;
 
 namespace GoldendMSA
 {
@@ -14,13 +14,13 @@ namespace GoldendMSA
             int l0KeyId,
             int l1KeyId,
             int l2KeyId,
-            int accessCheckFailed, 
+            int accessCheckFailed,
             string domainName,
             string forestName,
             out GroupKeyEnvelope gke,
             out int gkeSize)
         {
-            L0Key l0Key = ComputeL0Key(rootKey, l0KeyId);
+            var l0Key = ComputeL0Key(rootKey, l0KeyId);
 
             ComputeSidPrivateKey(
                 l0Key,
@@ -28,11 +28,12 @@ namespace GoldendMSA
                 l1KeyId,
                 l2KeyId,
                 accessCheckFailed,
-                out byte[] l1Key,
-                out byte[] l2Key);
+                out var l1Key,
+                out var l2Key);
 
             // There is another function that is being called if AccessCheckFailed != 0  which is ComputePublicKey - should not be relevant for us
-            int guidExists = (rootKey.cn == Guid.Empty || rootKey.cn == null) ? 0 : 1; // we should get if we have this root key id.
+            var guidExists =
+                rootKey.Cn == Guid.Empty ? 0 : 1; // we should get if we have this root key id.
 
             FormatReturnBlob(
                 l0Key,
@@ -49,42 +50,43 @@ namespace GoldendMSA
             RootKey rootKey,
             int l0KeyId)
         {
-            byte[] rootKeyGuid = rootKey.cn.ToByteArray();
+            var rootKeyGuid = rootKey.Cn.ToByteArray();
 
-            uint errCode = KdsCli.GenerateKDFContext(
+            var errCode = KdsCli.GenerateKDFContext(
                 rootKeyGuid, l0KeyId,
                 0xffffffff, 0xffffffff,
                 0,
-                out IntPtr kdfContextPtr,
-                out int kdfContextSize,
-                out int kdfContextFlag);
+                out var kdfContextPtr,
+                out var kdfContextSize,
+                out var kdfContextFlag);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(ComputeL0Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(ComputeL0Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
 
-            byte[] kdfContext = new byte[kdfContextSize];
+            var kdfContext = new byte[kdfContextSize];
             Marshal.Copy(kdfContextPtr, kdfContext, 0, kdfContextSize);
 
-            byte[] generateDerivedKey = new byte[RootKey.KdsRootKeyDataSizeDefault];
-            int labelSize = 0;
-            byte[] label = null;
+            var generateDerivedKey = new byte[RootKey.KdsRootKeyDataSizeDefault];
+            var labelSize = 0;
 
             errCode = KdsCli.GenerateDerivedKey(
-                rootKey.msKdsKDFAlgorithmID,
-                rootKey.msKdsKDFParam,
-                rootKey.KDFParamSize,
+                rootKey.MsKdsKdfAlgorithmId,
+                rootKey.MsKdsKdfParam,
+                rootKey.KdfParamSize,
                 rootKey.KdsRootKeyData,
                 rootKey.KdsRootKeyDataSize,
                 kdfContext, kdfContextSize,
                 ref kdfContextFlag,
-                label, labelSize,
-            1, generateDerivedKey,
+                null, labelSize, // this will always be null
+                1, generateDerivedKey,
                 RootKey.KdsRootKeyDataSizeDefault, 0);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(ComputeL0Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(ComputeL0Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
 
-            L0Key l0Key = new L0Key(rootKey, l0KeyId, generateDerivedKey);
+            var l0Key = new L0Key(rootKey, l0KeyId, generateDerivedKey);
 
             return l0Key;
         }
@@ -97,44 +99,46 @@ namespace GoldendMSA
             out byte[] derivedKey,
             out byte[] derivedKey2)
         {
-            byte[] rootKeyGuid = l0Key.cn.ToByteArray();
+            var rootKeyGuid = l0Key.Cn.ToByteArray();
             derivedKey = new byte[RootKey.KdsRootKeyDataSizeDefault];
             derivedKey2 = null;
 
-            uint errCode = KdsCli.GenerateKDFContext(
-                rootKeyGuid, (int)l0Key.L0KeyID,
+            var errCode = KdsCli.GenerateKDFContext(
+                rootKeyGuid, (int)l0Key.L0KeyId,
                 0x1f, 0xffffffff, 1,
-                out IntPtr kdfContextPtr,
-                out int kdfContextSize,
-                out int kdfContextFlag);
+                out var kdfContextPtr,
+                out var kdfContextSize,
+                out var kdfContextFlag);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
 
-            int kdfContextModifiedSize = kdfContextSize + sDSize;
-            byte[] kdfContextModified = new byte[kdfContextModifiedSize];
+            var kdfContextModifiedSize = kdfContextSize + sDSize;
+            var kdfContextModified = new byte[kdfContextModifiedSize];
 
             Marshal.Copy(kdfContextPtr, kdfContextModified, 0, kdfContextSize);
             Array.Copy(securityDescriptor, 0, kdfContextModified, kdfContextSize, sDSize);
 
             errCode = KdsCli.GenerateDerivedKey(
-                l0Key.msKdsKDFAlgorithmID,
-                l0Key.msKdsKDFParam,
-                l0Key.KDFParamSize,
+                l0Key.MsKdsKdfAlgorithmId,
+                l0Key.MsKdsKdfParam,
+                l0Key.KdfParamSize,
                 l0Key.KdsRootKeyData,
                 64,
                 kdfContextModified, kdfContextModifiedSize,
                 ref kdfContextFlag,
-            null, 0, 1,
-            derivedKey,
+                null, 0, 1,
+                derivedKey,
                 RootKey.KdsRootKeyDataSizeDefault, 0);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
 
             // This section will be used if 0<L1KeyID<31
             byte[] generatedDerivedKey;
-            byte[] kdfContext = new byte[kdfContextSize];
+            var kdfContext = new byte[kdfContextSize];
             Marshal.Copy(kdfContextPtr, kdfContext, 0, kdfContextSize);
 
             if (l1KeyId != 31)
@@ -143,16 +147,17 @@ namespace GoldendMSA
                 generatedDerivedKey = derivedKey.ToArray();
 
                 errCode = KdsCli.GenerateDerivedKey(
-                    l0Key.msKdsKDFAlgorithmID, l0Key.msKdsKDFParam,
-                    l0Key.KDFParamSize, generatedDerivedKey,
+                    l0Key.MsKdsKdfAlgorithmId, l0Key.MsKdsKdfParam,
+                    l0Key.KdfParamSize, generatedDerivedKey,
                     64, kdfContext,
                     kdfContextSize, ref kdfContextFlag,
                     null, 0,
-                31 - l1KeyId, derivedKey,
+                    31 - l1KeyId, derivedKey,
                     RootKey.KdsRootKeyDataSizeDefault, 0);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
             }
 
             if (l1KeyId > 0)
@@ -162,19 +167,18 @@ namespace GoldendMSA
                 generatedDerivedKey = derivedKey.ToArray();
 
                 errCode = KdsCli.GenerateDerivedKey(
-                    l0Key.msKdsKDFAlgorithmID, l0Key.msKdsKDFParam,
-                    l0Key.KDFParamSize, generatedDerivedKey,
+                    l0Key.MsKdsKdfAlgorithmId, l0Key.MsKdsKdfParam,
+                    l0Key.KdfParamSize, generatedDerivedKey,
                     64, kdfContext,
                     kdfContextSize, ref kdfContextFlag,
                     null, 0,
-                1, derivedKey2,
+                    1, derivedKey2,
                     RootKey.KdsRootKeyDataSizeDefault, 0);
 
                 if (errCode != 0)
-                    throw new Exception($"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
+                    throw new Exception(
+                        $"{nameof(GenerateL1Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
             }
-
-            return;
         }
 
         private static void GenerateL2Key(
@@ -185,39 +189,39 @@ namespace GoldendMSA
             out int flagKdfContext,
             out byte[] derivedKey)
         {
-            byte[] rootKeyGuid = l0Key.cn.ToByteArray();
+            var rootKeyGuid = l0Key.Cn.ToByteArray();
 
             derivedKey = new byte[RootKey.KdsRootKeyDataSizeDefault];
 
-            uint errCode = KdsCli.GenerateKDFContext(
-                rootKeyGuid, (int)l0Key.L0KeyID,
+            var errCode = KdsCli.GenerateKDFContext(
+                rootKeyGuid, (int)l0Key.L0KeyId,
                 l1KeyId, 0x1f,
                 2,
-                out IntPtr kdfContextPtr,
-                out int KDFContextSize,
+                out var kdfContextPtr,
+                out var kdfContextSize,
                 out flagKdfContext);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(GenerateL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
+                throw new Exception(
+                    $"{nameof(GenerateL2Key)}:: {nameof(KdsCli.GenerateKDFContext)} failed with error code {errCode}");
 
-            byte[] kdfContext = new byte[KDFContextSize];
-            Marshal.Copy(kdfContextPtr, kdfContext, 0, KDFContextSize);
+            var kdfContext = new byte[kdfContextSize];
+            Marshal.Copy(kdfContextPtr, kdfContext, 0, kdfContextSize);
 
-            int someFlag = 32 - l2KeyId;
+            var someFlag = 32 - l2KeyId;
 
             errCode = KdsCli.GenerateDerivedKey(
-                l0Key.msKdsKDFAlgorithmID, l0Key.msKdsKDFParam,
-                l0Key.KDFParamSize, l1DerivedKey,
+                l0Key.MsKdsKdfAlgorithmId, l0Key.MsKdsKdfParam,
+                l0Key.KdfParamSize, l1DerivedKey,
                 64, kdfContext,
-                KDFContextSize, ref flagKdfContext,
+                kdfContextSize, ref flagKdfContext,
                 null, 0,
-            someFlag, derivedKey,
+                someFlag, derivedKey,
                 RootKey.KdsRootKeyDataSizeDefault, 0);
 
             if (errCode != 0)
-                throw new Exception($"{nameof(GenerateL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
-
-            return;
+                throw new Exception(
+                    $"{nameof(GenerateL2Key)}:: {nameof(KdsCli.GenerateDerivedKey)} failed with error code {errCode}");
         }
 
         private static void ComputeSidPrivateKey(
@@ -230,7 +234,7 @@ namespace GoldendMSA
             out byte[] l1Key,
             out byte[] l2Key)
         {
-            GenerateL1Key(securityDescriptor, sDSize, l0Key, l1KeyId, out byte[] l1KeyFirst, out byte[] l2KeySecond);
+            GenerateL1Key(securityDescriptor, sDSize, l0Key, l1KeyId, out var l1KeyFirst, out var l2KeySecond);
 
             if (l2KeyId == 31 && accessCheckFailed == 0)
             {
@@ -239,109 +243,94 @@ namespace GoldendMSA
                 return;
             }
 
-            GenerateL2Key(l0Key, l1KeyFirst, l1KeyId, l2KeyId, out int flag, out l2Key);
+            GenerateL2Key(l0Key, l1KeyFirst, l1KeyId, l2KeyId, out var flag, out l2Key);
 
             if (l1KeyId > 0)
                 l1Key = l2KeySecond.ToArray();
             else
                 l1Key = null;
-
-            return;
         }
 
         private static void FormatReturnBlob(
             L0Key l0Key,
             int guidExists,
             byte[] l1Key,
-            int l1KeyID,
+            int l1KeyId,
             byte[] l2Key,
-            int l2KeyID,
+            int l2KeyId,
             byte[] publicKey,
             int publicKeySize,
             string domainName,
             string forestName,
             out GroupKeyEnvelope gke,
             out int gkeSize
-            )
+        )
         {
-            gke = new GroupKeyEnvelope()
+            gke = new GroupKeyEnvelope
             {
                 Version = 1,
                 Reserved = 1263748171,
-                L0Index = (int)l0Key.L0KeyID,
-                L1Index = l1KeyID,
-                L2Index = l2KeyID,
-                RootKeyIdentifier = l0Key.cn,
-                cbKDFAlgorithm = l0Key.msKdsKDFAlgorithmID.Length * 2 + 2,
-                cbKDFParameters = l0Key.KDFParamSize,
-                cbSecretAgreementAlgorithm = (l0Key.KdsSecretAgreementAlgorithmID.Length * 2 + 2),
-                cbSecretAgreementParameters = l0Key.SecretAlgoritmParamSize,
+                L0Index = (int)l0Key.L0KeyId,
+                L1Index = l1KeyId,
+                L2Index = l2KeyId,
+                RootKeyIdentifier = l0Key.Cn,
+                CbKdfAlgorithm = l0Key.MsKdsKdfAlgorithmId.Length * 2 + 2,
+                CbKdfParameters = l0Key.KdfParamSize,
+                CbSecretAgreementAlgorithm = l0Key.KdsSecretAgreementAlgorithmId.Length * 2 + 2,
+                CbSecretAgreementParameters = l0Key.SecretAlgoritmParamSize,
                 PrivateKeyLength = l0Key.PrivateKeyLength,
                 PublicKeyLength = l0Key.PublicKeyLength,
-                cbDomainName = domainName.Length * 2 + 2,
-                cbForestName = forestName.Length * 2 + 2,
-                KDFAlgorithm = l0Key.msKdsKDFAlgorithmID,
-                KDFParameters = l0Key.msKdsKDFParam.ToArray(),
-                SecretAgreementAlgorithm = l0Key.KdsSecretAgreementAlgorithmID,
+                CbDomainName = domainName.Length * 2 + 2,
+                CbForestName = forestName.Length * 2 + 2,
+                KdfAlgorithm = l0Key.MsKdsKdfAlgorithmId,
+                KdfParameters = l0Key.MsKdsKdfParam.ToArray(),
+                SecretAgreementAlgorithm = l0Key.KdsSecretAgreementAlgorithmId,
                 SecretAgreementParameters = l0Key.KdsSecretAgreementParam.ToArray(),
                 DomainName = domainName,
                 ForestName = forestName
             };
 
-            int firstKeySize = 64;
-            int secondKeySize = 64;
+            var firstKeySize = 64;
+            var secondKeySize = 64;
 
             if (publicKey != null)
             {
                 secondKeySize = publicKeySize;
                 firstKeySize = 0;
             }
-            else if (l2KeyID == 31)
+            else if (l2KeyId == 31)
             {
                 secondKeySize = 0;
             }
             else
             {
-                if (l1KeyID == 0)
-                {
-                    firstKeySize = 0;
-                }
+                if (l1KeyId == 0) firstKeySize = 0;
             }
-            gke.cbL1Key = firstKeySize;
-            gke.cbL2Key = secondKeySize;
-            int isPublicKey = 0;
+
+            gke.CbL1Key = firstKeySize;
+            gke.CbL2Key = secondKeySize;
+            var isPublicKey = 0;
             gke.L1Key = null;
             gke.L2Key = null;
-            if (publicKey != null)
-            {
-                isPublicKey |= 1;
-            }
+            if (publicKey != null) isPublicKey |= 1;
             isPublicKey |= 2;
-            gke.isPublicKey = isPublicKey;
+            gke.IsPublicKey = isPublicKey;
 
-            if (firstKeySize != 0)
-            {
-                gke.L1Key = l1Key.ToArray();
-            }
+            if (firstKeySize != 0) gke.L1Key = l1Key.ToArray();
 
             if (secondKeySize != 0)
             {
                 if (publicKey != null)
-                {
                     gke.L2Key = publicKey.ToArray();
-                }
                 else
-                {
                     gke.L2Key = l2Key.ToArray();
-                }
             }
 
-            gkeSize = 80 + gke.cbKDFAlgorithm +
-                gke.cbKDFParameters + gke.cbSecretAgreementAlgorithm +
-                gke.cbSecretAgreementParameters +
-                gke.cbDomainName + gke.cbForestName +
-                gke.cbL1Key + gke.cbL2Key;
+            gkeSize = 80 + gke.CbKdfAlgorithm +
+                      gke.CbKdfParameters + gke.CbSecretAgreementAlgorithm +
+                      gke.CbSecretAgreementParameters +
+                      gke.CbDomainName + gke.CbForestName +
+                      gke.CbL1Key + gke.CbL2Key;
         }
     }
-
 }

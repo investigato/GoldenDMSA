@@ -1,9 +1,7 @@
 ﻿using System;
 using Asn1;
-using System.Text;
-using System.Collections.Generic;
 
-namespace GoldendMSA
+namespace GoldendMSA.lib
 {
     public class EncryptedData
     {
@@ -14,7 +12,7 @@ namespace GoldendMSA
         //}
 
 
-        public EncryptedData(Int32 encType, byte[] data)
+        public EncryptedData(int encType, byte[] data)
         {
             etype = encType;
             cipher = data;
@@ -22,61 +20,57 @@ namespace GoldendMSA
 
         public EncryptedData(AsnElt body)
         {
-            foreach (AsnElt s in body.Sub)
-            {
+            foreach (var s in body.Sub)
                 switch (s.TagValue)
                 {
                     case 0:
                         etype = Convert.ToInt32(s.Sub[0].GetInteger());
                         break;
                     case 1:
-                        long tmpLong = s.Sub[0].GetInteger();
+                        var tmpLong = s.Sub[0].GetInteger();
                         kvno = Convert.ToUInt32(tmpLong & 0x00000000ffffffff);
                         break;
                     case 2:
                         cipher = s.Sub[0].GetOctetString();
                         break;
-                    default:
-                        break;
                 }
-            }
         }
+
+        public int etype { get; set; }
+
+        public uint kvno { get; set; }
+
+        public byte[] cipher { get; set; }
 
         public AsnElt Encode()
         {
             // etype   [0] Int32 -- EncryptionType --,
-            AsnElt etypeAsn = AsnElt.MakeInteger(etype);
-            AsnElt etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { etypeAsn });
+            var etypeAsn = AsnElt.MakeInteger(etype);
+            var etypeSeq = AsnElt.Make(AsnElt.SEQUENCE, etypeAsn);
             etypeSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 0, etypeSeq);
 
 
             // cipher  [2] OCTET STRING -- ciphertext
-            AsnElt cipherAsn = AsnElt.MakeBlob(cipher);
-            AsnElt cipherSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { cipherAsn });
+            var cipherAsn = AsnElt.MakeBlob(cipher);
+            var cipherSeq = AsnElt.Make(AsnElt.SEQUENCE, cipherAsn);
             cipherSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 2, cipherSeq);
 
 
             if (kvno != 0)
             {
                 // kvno    [1] UInt32 OPTIONAL
-                AsnElt kvnoAsn = AsnElt.MakeInteger(kvno);
-                AsnElt kvnoSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { kvnoAsn });
+                var kvnoAsn = AsnElt.MakeInteger(kvno);
+                var kvnoSeq = AsnElt.Make(AsnElt.SEQUENCE, kvnoAsn);
                 kvnoSeq = AsnElt.MakeImplicit(AsnElt.CONTEXT, 1, kvnoSeq);
 
-                AsnElt totalSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { etypeSeq, kvnoSeq, cipherSeq });
+                var totalSeq = AsnElt.Make(AsnElt.SEQUENCE, etypeSeq, kvnoSeq, cipherSeq);
                 return totalSeq;
             }
             else
             {
-                AsnElt totalSeq = AsnElt.Make(AsnElt.SEQUENCE, new AsnElt[] { etypeSeq, cipherSeq });
+                var totalSeq = AsnElt.Make(AsnElt.SEQUENCE, etypeSeq, cipherSeq);
                 return totalSeq;
             }
         }
-
-        public Int32 etype { get; set; }
-
-        public UInt32 kvno { get; set; }
-
-        public byte[] cipher { get; set; }
     }
 }
