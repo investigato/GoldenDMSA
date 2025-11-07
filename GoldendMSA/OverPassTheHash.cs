@@ -4,7 +4,7 @@
 namespace GoldendMSA
 {
 
-    public class OPTH
+    public class OverPassTheHash
     {
        
         public static int Over_pass_the_hash(string username, string domainName, string aes256, bool ptt,  bool verbose  )
@@ -29,13 +29,13 @@ namespace GoldendMSA
                     try
                     {
 
-                        Console.WriteLine("\r\n[X] ERROR : {0}: {1}\r\n", (Interop.KERBEROS_ERROR)ex.error_code, ex.e_text);
+                        Console.WriteLine("[X] ERROR : {0}: {1}", (Interop.KERBEROS_ERROR)ex.error_code, ex.e_text);
 
 
                     }
                     catch
                     {
-                        Console.WriteLine("\r\n[X] ERROR : {1}\r\n", (Interop.KERBEROS_ERROR)ex.error_code);
+                        Console.WriteLine("[X] ERROR : {1}", (Interop.KERBEROS_ERROR)ex.error_code);
                     }
                 }
             }
